@@ -15,14 +15,14 @@ namespace Volo.Abp.TestApp.Application
         {
         }
 
-        protected override async Task DeleteByIdAsync(DistrictKey id)
+        protected async override Task DeleteByIdAsync(DistrictKey id)
         {
             await Repository.DeleteAsync(d => d.CityId == id.CityId && d.Name == id.Name);
         }
 
-        protected override async Task<District> GetEntityByIdAsync(DistrictKey id)
+        protected async override Task<District> GetEntityByIdAsync(DistrictKey id)
         {
-            return await AsyncQueryableExecuter.FirstOrDefaultAsync(
+            return await AsyncExecuter.FirstOrDefaultAsync(
                 Repository.Where(d => d.CityId == id.CityId && d.Name == id.Name)
             );
         }

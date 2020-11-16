@@ -31,7 +31,7 @@ namespace Volo.Abp.AspNetCore.Mvc.UI.Bootstrap.TagHelpers.Form
             _serviceProvider = serviceProvider;
         }
 
-        public override async Task ProcessAsync(TagHelperContext context, TagHelperOutput output)
+        public async override Task ProcessAsync(TagHelperContext context, TagHelperOutput output)
         {
             var list = InitilizeFormGroupContentsContext(context, output);
 
@@ -42,6 +42,8 @@ namespace Volo.Abp.AspNetCore.Mvc.UI.Bootstrap.TagHelpers.Form
             await ConvertToMvcForm(context, output);
 
             await ProcessFieldsAsync(context, output);
+
+            RemoveFormGroupItemsNotInModel(context, output, list);
 
             SetContent(context, output, list, childContent);
 
@@ -143,6 +145,13 @@ namespace Volo.Abp.AspNetCore.Mvc.UI.Bootstrap.TagHelpers.Form
             }
         }
 
+        protected virtual void RemoveFormGroupItemsNotInModel(TagHelperContext context, TagHelperOutput output, List<FormGroupItem> items)
+        {
+            var models = GetModels(context, output);
+
+            items.RemoveAll(x => models.All(m => !m.Name.Equals(x.PropertyName, StringComparison.InvariantCultureIgnoreCase)));
+        }
+
         protected virtual async Task ProcessSelectGroupAsync(TagHelperContext context, TagHelperOutput output, ModelExpression model)
         {
             var abpSelectTagHelper = GetSelectGroupTagHelper(context, output, model);
@@ -152,7 +161,7 @@ namespace Volo.Abp.AspNetCore.Mvc.UI.Bootstrap.TagHelpers.Form
 
         protected virtual AbpTagHelper GetSelectGroupTagHelper(TagHelperContext context, TagHelperOutput output, ModelExpression model)
         {
-            return IsRadioGroup(model.ModelExplorer) ? 
+            return IsRadioGroup(model.ModelExplorer) ?
                 GetAbpRadioInputTagHelper(model) :
                 GetSelectTagHelper(model);
         }

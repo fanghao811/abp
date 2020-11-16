@@ -1,6 +1,7 @@
+import { ApplicationConfiguration, ConfigStateService } from '@abp/ng.core';
+import { DatePipe } from '@angular/common';
 import { Injectable, Optional } from '@angular/core';
 import { NgbDateParserFormatter, NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
-import { DatePipe } from '@angular/common';
 
 function padNumber(value: number) {
   if (isNumber(value)) {
@@ -20,7 +21,7 @@ function toInteger(value: any): number {
 
 @Injectable()
 export class DateParserFormatter extends NgbDateParserFormatter {
-  constructor(@Optional() private datePipe: DatePipe) {
+  constructor(@Optional() private datePipe: DatePipe, private configState: ConfigStateService) {
     super();
   }
 
@@ -48,8 +49,15 @@ export class DateParserFormatter extends NgbDateParserFormatter {
   }
 
   format(date: NgbDateStruct): string {
+    const { shortDatePattern } = (this.configState.getOne(
+      'localization',
+    ) as ApplicationConfiguration.Localization).currentCulture.dateTimeFormat;
+
     if (date && this.datePipe) {
-      return this.datePipe.transform(new Date(date.year, date.month - 1, date.day), 'shortDate');
+      return this.datePipe.transform(
+        new Date(date.year, date.month - 1, date.day),
+        shortDatePattern,
+      );
     } else {
       return date
         ? `${date.year}-${isNumber(date.month) ? padNumber(date.month) : ''}-${

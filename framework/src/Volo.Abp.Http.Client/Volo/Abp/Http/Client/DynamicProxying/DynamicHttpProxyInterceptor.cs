@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -10,14 +10,15 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Volo.Abp.Content;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.DynamicProxy;
 using Volo.Abp.Http.Client.Authentication;
+using Volo.Abp.Http.Client.Content;
 using Volo.Abp.Http.Modeling;
 using Volo.Abp.Http.ProxyScripting.Generators;
 using Volo.Abp.Json;
 using Volo.Abp.MultiTenancy;
-using Volo.Abp.Reflection;
 using Volo.Abp.Threading;
 using Volo.Abp.Tracing;
 
@@ -26,7 +27,7 @@ namespace Volo.Abp.Http.Client.DynamicProxying
     public class DynamicHttpProxyInterceptor<TService> : AbpInterceptor, ITransientDependency
     {
         // ReSharper disable once StaticMemberInGenericType
-        protected static MethodInfo GenericInterceptAsyncMethod { get; }
+        protected static MethodInfo MakeRequestAndGetResultAsyncMethod { get; }
 
         protected ICancellationTokenProvider CancellationTokenProvider { get; }
         protected ICorrelationIdProvider CorrelationIdProvider { get; }
@@ -43,7 +44,7 @@ namespace Volo.Abp.Http.Client.DynamicProxying
 
         static DynamicHttpProxyInterceptor()
         {
-            GenericInterceptAsyncMethod = typeof(DynamicHttpProxyInterceptor<TService>)
+            MakeRequestAndGetResultAsyncMethod = typeof(DynamicHttpProxyInterceptor<TService>)
                 .GetMethods(BindingFlags.NonPublic | BindingFlags.Instance)
                 .First(m => m.Name == nameof(MakeRequestAndGetResultAsync) && m.IsGenericMethodDefinition);
         }
@@ -56,7 +57,7 @@ namespace Volo.Abp.Http.Client.DynamicProxying
             IJsonSerializer jsonSerializer,
             IRemoteServiceHttpClientAuthenticator clientAuthenticator,
             ICancellationTokenProvider cancellationTokenProvider,
-            ICorrelationIdProvider correlationIdProvider, 
+            ICorrelationIdProvider correlationIdProvider,
             IOptions<AbpCorrelationIdOptions> correlationIdOptions,
             ICurrentTenant currentTenant)
         {
@@ -74,7 +75,7 @@ namespace Volo.Abp.Http.Client.DynamicProxying
             Logger = NullLogger<DynamicHttpProxyInterceptor<TService>>.Instance;
         }
 
-        public override async Task InterceptAsync(IAbpMethodInvocation invocation)
+        public async override Task InterceptAsync(IAbpMethodInvocation invocation)
         {
             if (invocation.Method.ReturnType.GenericTypeArguments.IsNullOrEmpty())
             {
@@ -82,7 +83,7 @@ namespace Volo.Abp.Http.Client.DynamicProxying
             }
             else
             {
-                var result = (Task)GenericInterceptAsyncMethod
+                var result = (Task)MakeRequestAndGetResultAsyncMethod
                     .MakeGenericMethod(invocation.Method.ReturnType.GenericTypeArguments[0])
                     .Invoke(this, new object[] { invocation });
 
@@ -91,7 +92,6 @@ namespace Volo.Abp.Http.Client.DynamicProxying
                     invocation.Method.ReturnType.GetGenericArguments()[0]
                 );
             }
-
         }
 
         private async Task<object> GetResultAsync(Task task, Type resultType)
@@ -105,25 +105,33 @@ namespace Volo.Abp.Http.Client.DynamicProxying
 
         private async Task<T> MakeRequestAndGetResultAsync<T>(IAbpMethodInvocation invocation)
         {
-            var responseAsString = await MakeRequestAsync(invocation);
+            var responseContent = await MakeRequestAsync(invocation);
 
-            //TODO: Think on that
-            if (TypeHelper.IsPrimitiveExtended(typeof(T), true))
+            if (typeof(T) == typeof(IRemoteStreamContent))
             {
-                return (T)Convert.ChangeType(responseAsString, typeof(T));
+                /* returning a class that holds a reference to response
+                 * content just to be sure that GC does not dispose of
+                 * it before we finish doing our work with the stream */
+                return (T)((object)new ReferencedRemoteStreamContent(await responseContent.ReadAsStreamAsync(), responseContent));
             }
 
-            return JsonSerializer.Deserialize<T>(responseAsString);
+            var stringContent = await responseContent.ReadAsStringAsync();
+            if (typeof(T) == typeof(string))
+            {
+                return (T)(object)stringContent;
+            }
+
+            return JsonSerializer.Deserialize<T>(await responseContent.ReadAsStringAsync());
         }
 
-        private async Task<string> MakeRequestAsync(IAbpMethodInvocation invocation)
+        private async Task<HttpContent> MakeRequestAsync(IAbpMethodInvocation invocation)
         {
             var clientConfig = ClientOptions.HttpClientProxies.GetOrDefault(typeof(TService)) ?? throw new AbpException($"Could not get DynamicHttpClientProxyConfig for {typeof(TService).FullName}.");
             var remoteServiceConfig = AbpRemoteServiceOptions.RemoteServices.GetConfigurationOrDefault(clientConfig.RemoteServiceName);
 
             var client = HttpClientFactory.Create(clientConfig.RemoteServiceName);
 
-            var action = await ApiDescriptionFinder.FindActionAsync(remoteServiceConfig.BaseUrl, typeof(TService), invocation.Method);
+            var action = await ApiDescriptionFinder.FindActionAsync(client, remoteServiceConfig.BaseUrl, typeof(TService), invocation.Method);
             var apiVersion = GetApiVersionInfo(action);
             var url = remoteServiceConfig.BaseUrl.EnsureEndsWith('/') + UrlBuilder.GenerateUrlWithParameters(action, invocation.ArgumentsDictionary, apiVersion);
 
@@ -143,16 +151,18 @@ namespace Volo.Abp.Http.Client.DynamicProxying
                 )
             );
 
-            var response = await client.SendAsync(requestMessage, GetCancellationToken());
+            var response = await client.SendAsync(requestMessage,
+                HttpCompletionOption.ResponseHeadersRead /*this will buffer only the headers, the content will be used as a stream*/,
+                GetCancellationToken());
 
             if (!response.IsSuccessStatusCode)
             {
                 await ThrowExceptionForResponseAsync(response);
             }
 
-            return await response.Content.ReadAsStringAsync();
-        } 
-        
+            return response.Content;
+        }
+
         private ApiVersionInfo GetApiVersionInfo(ActionApiDescriptionModel action)
         {
             var apiVersion = FindBestApiVersion(action);
@@ -242,10 +252,22 @@ namespace Volo.Abp.Http.Client.DynamicProxying
                     await response.Content.ReadAsStringAsync()
                 );
 
-                throw new AbpRemoteCallException(errorResponse.Error);
+                throw new AbpRemoteCallException(errorResponse.Error)
+                {
+                    HttpStatusCode = (int) response.StatusCode
+                };
             }
 
-            throw new AbpException($"Remote service returns error! HttpStatusCode: {response.StatusCode}, ReasonPhrase: {response.ReasonPhrase}");
+            throw new AbpRemoteCallException(
+                new RemoteServiceErrorInfo
+                {
+                    Message = response.ReasonPhrase,
+                    Code = response.StatusCode.ToString()
+                }
+            )
+            {
+                HttpStatusCode = (int) response.StatusCode
+            };
         }
 
         protected virtual CancellationToken GetCancellationToken()

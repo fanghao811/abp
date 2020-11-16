@@ -31,7 +31,7 @@ namespace Volo.Abp.Localization
                 includeParentCultures
             );
         }
-        
+
         public IEnumerable<LocalizedString> GetAllStrings(bool includeParentCultures, bool includeBaseLocalizers)
         {
             return GetAllStrings(
@@ -39,12 +39,6 @@ namespace Volo.Abp.Localization
                 includeParentCultures,
                 includeBaseLocalizers
             );
-        }
-
-        [Obsolete("This method is obsolete. Use `CurrentCulture` and `CurrentUICulture` instead.")]
-        public IStringLocalizer WithCulture(CultureInfo culture)
-        {
-            return new CultureWrapperStringLocalizer(culture.Name, this);
         }
 
         protected virtual LocalizedString GetLocalizedStringFormatted(string name, params object[] arguments)
@@ -104,7 +98,7 @@ namespace Volo.Abp.Localization
             //Try to get from same language dictionary (without country code)
             if (cultureName.Contains("-")) //Example: "tr-TR" (length=5)
             {
-                var strLang = Resource.Contributors.GetOrNull(GetBaseCultureName(cultureName), name);
+                var strLang = Resource.Contributors.GetOrNull(CultureHelper.GetBaseCultureName(cultureName), name);
                 if (strLang != null)
                 {
                     return strLang;
@@ -126,7 +120,7 @@ namespace Volo.Abp.Localization
         }
 
         protected virtual IReadOnlyList<LocalizedString> GetAllStrings(
-            string cultureName, 
+            string cultureName,
             bool includeParentCultures = true,
             bool includeBaseLocalizers = true)
         {
@@ -168,7 +162,7 @@ namespace Volo.Abp.Localization
                 //Overwrite all strings from the language based on country culture
                 if (cultureName.Contains("-"))
                 {
-                    Resource.Contributors.Fill(GetBaseCultureName(cultureName), allStrings);
+                    Resource.Contributors.Fill(CultureHelper.GetBaseCultureName(cultureName), allStrings);
                 }
             }
 
@@ -176,13 +170,6 @@ namespace Volo.Abp.Localization
             Resource.Contributors.Fill(cultureName, allStrings);
 
             return allStrings.Values.ToImmutableList();
-        }
-
-        protected virtual string GetBaseCultureName(string cultureName)
-        {
-            return cultureName.Contains("-")
-                ? cultureName.Left(cultureName.IndexOf("-", StringComparison.Ordinal))
-                : cultureName;
         }
 
         public class CultureWrapperStringLocalizer : IStringLocalizer, IStringLocalizerSupportsInheritance
@@ -203,12 +190,6 @@ namespace Volo.Abp.Localization
             public IEnumerable<LocalizedString> GetAllStrings(bool includeParentCultures)
             {
                 return _innerLocalizer.GetAllStrings(_cultureName, includeParentCultures);
-            }
-
-            [Obsolete("This method is obsolete. Use `CurrentCulture` and `CurrentUICulture` instead.")]
-            public IStringLocalizer WithCulture(CultureInfo culture)
-            {
-                return new CultureWrapperStringLocalizer(culture.Name, _innerLocalizer);
             }
 
             public IEnumerable<LocalizedString> GetAllStrings(bool includeParentCultures, bool includeBaseLocalizers)

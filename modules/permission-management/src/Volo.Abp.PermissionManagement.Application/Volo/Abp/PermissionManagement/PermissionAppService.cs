@@ -52,6 +52,11 @@ namespace Volo.Abp.PermissionManagement
 
                 foreach (var permission in group.GetPermissionsWithChildren())
                 {
+                    if (!permission.IsEnabled)
+                    {
+                        continue;
+                    }
+
                     if (permission.Providers.Any() && !permission.Providers.Contains(providerName))
                     {
                         continue;
@@ -111,7 +116,7 @@ namespace Volo.Abp.PermissionManagement
             var policyName = Options.ProviderPolicies.GetOrDefault(providerName);
             if (policyName.IsNullOrEmpty())
             {
-                throw new AbpException($"No policy defined to get/set permissions for the provider '{policyName}'. Use {nameof(PermissionManagementOptions)} to map the policy.");
+                throw new AbpException($"No policy defined to get/set permissions for the provider '{providerName}'. Use {nameof(PermissionManagementOptions)} to map the policy.");
             }
 
             await AuthorizationService.CheckAsync(policyName);

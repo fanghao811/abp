@@ -80,6 +80,8 @@ namespace Acme.BookStore.Permissions
 
 > ABP automatically discovers this class. No additional configuration required!
 
+> You typically define this class inside the `Application.Contracts` project of your [application](Startup-Templates/Application.md). The startup template already comes with an empty class named *YourProjectNamePermissionDefinitionProvider* that you can start with.
+
 In the `Define` method, you first need to add a **permission group** or get an existing group then add **permissions** to this group.
 
 When you define a permission, it becomes usable in the ASP.NET Core authorization system as a **policy** name. It also becomes visible in the UI. See permissions dialog for a role:
@@ -141,6 +143,20 @@ myGroup.AddPermission(
     multiTenancySide: MultiTenancySides.Tenant //set multi-tenancy side!
 );
 ```
+
+#### Enable/Disable Permissions
+
+A permission is enabled by default. It is possible to disable a permission. A disabled permission will be prohibited for everyone. You can still check for the permission, but it will always return prohibited.
+
+Example definition:
+
+````csharp
+myGroup.AddPermission("Author_Management", isEnabled: false);
+````
+
+You normally don't need to define a disabled permission (unless you temporary want disable a feature of your application). However, you may want to disable a permission defined in a depended module. In this way you can disable the related application functionality. See the "*Changing Permission Definitions of a Depended Module*" section below for an example usage.
+
+> Note: Checking an undefined permission will throw an exception while a disabled permission check simply returns prohibited (false).
 
 #### Child Permissions
 
@@ -208,6 +224,18 @@ See [policy based authorization](https://docs.microsoft.com/en-us/aspnet/core/se
 
 A class deriving from the `PermissionDefinitionProvider` (just like the example above) can also get existing permission definitions (defined by the depended [modules](Module-Development-Basics.md)) and change their definitions.
 
+Example:
+
+````csharp
+context
+    .GetPermissionOrNull(IdentityPermissions.Roles.Delete)
+    .IsEnabled = false;
+````
+
+When you write this code inside your permission definition provider, it finds the "role deletion" permission of the [Identity Module](Modules/Identity.md) and disabled the permission, so no one can delete a role on the application.
+
+> Tip: It is better to check the value returned by the `GetPermissionOrNull` method since it may return null if the given permission was not defined.
+
 ## IAuthorizationService
 
 ASP.NET Core provides the `IAuthorizationService` that can be used to check for authorization. Once you inject, you can use it in your code to conditionally control the authorization.
@@ -250,15 +278,23 @@ public async Task CreateAsync(CreateAuthorDto input)
 
 > Tip: Prefer to use the `Authorize` attribute wherever possible, since it is declarative & simple. Use `IAuthorizationService` if you need to conditionally check a permission and run a business code based on the permission check.
 
-### Check a Permission in JavaScript
+## Check a Permission in JavaScript
 
-You may need to check a policy/permission on the client side. For ASP.NET Core MVC / Razor Pages applications, you can use the `abp.auth` API. Example:
+You may need to check a policy/permission on the client side.
+
+### MVC UI
+
+For ASP.NET Core MVC / Razor Pages applications, you can use the `abp.auth` API.
+
+**Example: Check if a given permission has been granted for the current user**
 
 ```js
 abp.auth.isGranted('MyPermissionName');
 ```
 
-See [abp.auth](API/JavaScript-API/Auth.md) API documentation for details.
+### Angular UI
+
+See the [permission management document](UI/Angular/Permission-Management.md) for the Angular UI.
 
 ## Permission Management
 
@@ -318,7 +354,7 @@ public class SystemAdminPermissionValueProvider : PermissionValueProvider
 
     public override string Name => "SystemAdmin";
 
-    public override async Task<PermissionGrantResult>
+    public async override Task<PermissionGrantResult>
            CheckAsync(PermissionValueCheckContext context)
     {
         if (context.Principal?.FindFirst("User_Type")?.Value == "SystemAdmin")
@@ -339,10 +375,10 @@ A permission value provider should return one of the following values from the `
 - `PermissionGrantResult.Prohibited` is returned to prohibit the user for the permission. If any of the providers return `Prohibited`, the result will always be `Prohibited`. Doesn't matter what other providers return.
 - `PermissionGrantResult.Undefined` is returned if this value provider could not decide about the permission value. Return this to let other providers check the permission.
 
-Once a provider is defined, it should be added to the `PermissionOptions` as shown below:
+Once a provider is defined, it should be added to the `AbpPermissionOptions` as shown below:
 
 ```csharp
-Configure<PermissionOptions>(options =>
+Configure<AbpPermissionOptions>(options =>
 {
     options.ValueProviders.Add<SystemAdminPermissionValueProvider>();
 });
@@ -350,7 +386,7 @@ Configure<PermissionOptions>(options =>
 
 ### Permission Store
 
-`IPermissionStore` is the only interface that needs to be implemented to read the value of permissions from a persistence source, generally a database system. Permission management module implements it. See the [permission management module documentation](Modules/Permission-Management.md) for more information
+`IPermissionStore` is the only interface that needs to be implemented to read the value of permissions from a persistence source, generally a database system. The Permission Management module implements it  and pre-installed in the application startup template. See the [permission management module documentation](Modules/Permission-Management.md) for more information
 
 ### AlwaysAllowAuthorizationService
 

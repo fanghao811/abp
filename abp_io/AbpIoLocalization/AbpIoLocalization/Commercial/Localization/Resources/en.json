@@ -29,7 +29,9 @@
     "ApiKey": "API key",
     "UserNameNotFound": "There is no user with username {0}",
     "SuccessfullyAddedToNewsletter": "Thanks you for subscribing to our newsletter!",
-    "ManageProfile": "Manage your profile",
-    "EmailNotValid": "Please enter a valid email address."
+    "MyProfile": "My profile",
+    "EmailNotValid": "Please enter a valid email address.",
+    "JoinOurMarketingNewsletter": "Join our marketing newsletter",
+    "WouldLikeToReceiveMarketingMaterials": "I would like to receive marketing materials like product deals & special offers."
    }
 }

@@ -1,8 +1,8 @@
-﻿using System;
+using System;
 using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using Volo.Abp.AspNetCore.Mvc.UI.RazorPages;
+using Volo.Abp.Validation;
 
 namespace Volo.Abp.TenantManagement.Web.Pages.TenantManagement.Tenants
 {
@@ -18,7 +18,7 @@ namespace Volo.Abp.TenantManagement.Web.Pages.TenantManagement.Tenants
             TenantAppService = tenantAppService;
         }
 
-        public virtual async Task OnGetAsync(Guid id)
+        public virtual async Task<IActionResult> OnGetAsync(Guid id)
         {
             var defaultConnectionString = await TenantAppService.GetDefaultConnectionStringAsync(id);
             Tenant = new TenantInfoModel
@@ -27,6 +27,8 @@ namespace Volo.Abp.TenantManagement.Web.Pages.TenantManagement.Tenants
                 DefaultConnectionString = defaultConnectionString,
                 UseSharedDatabase = defaultConnectionString.IsNullOrWhiteSpace()
             };
+
+            return Page();
         }
 
         public virtual async Task<IActionResult> OnPostAsync()
@@ -52,7 +54,7 @@ namespace Volo.Abp.TenantManagement.Web.Pages.TenantManagement.Tenants
 
             public bool UseSharedDatabase { get; set; }
 
-            [StringLength(TenantConnectionStringConsts.MaxValueLength)]
+            [DynamicStringLength(typeof(TenantConnectionStringConsts), nameof(TenantConnectionStringConsts.MaxValueLength))]
             public string DefaultConnectionString { get; set; }
         }
     }

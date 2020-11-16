@@ -1,7 +1,11 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Localization;
 using Shouldly;
 using Volo.Abp.Http.Client;
+using Volo.Abp.Http.Localization;
+using Volo.Abp.Localization;
 using Xunit;
 
 namespace Volo.Abp.Http.DynamicProxying
@@ -31,6 +35,32 @@ namespace Volo.Abp.Http.DynamicProxying
         }
 
         [Fact]
+        public async Task GetException2Async()
+        {
+            var exception = await Assert.ThrowsAsync<AbpRemoteCallException>(async () => await _controller.GetException2Async());
+            exception.Error.Message.ShouldBe("Business exception with data: TEST");
+        }
+
+        [Fact]
+        public async Task GetWithDateTimeParameterAsync()
+        {
+            var dateTime1 = new DateTime(2020, 04, 19, 19, 05, 01);
+            var result = await _controller.GetWithDateTimeParameterAsync(dateTime1);
+            result.ShouldBe(dateTime1);
+        }
+
+        [Fact]
+        public async Task GetWithDateTimeParameterAsync_With_Different_Culture()
+        {
+            using (CultureHelper.Use("es"))
+            {
+                var dateTime1 = new DateTime(2020, 04, 19, 19, 05, 01);
+                var result = await _controller.GetWithDateTimeParameterAsync(dateTime1);
+                result.ShouldBe(dateTime1);
+            }
+        }
+
+        [Fact]
         public async Task PostValueWithHeaderAndQueryStringAsync()
         {
             var result = await _controller.PostValueWithHeaderAndQueryStringAsync("myheader", "myqs");
@@ -54,7 +84,7 @@ namespace Volo.Abp.Http.DynamicProxying
         [Fact]
         public async Task PostObjectWithBodyAsync()
         {
-            var result = await _controller.PostObjectWithBodyAsync(new Car { Year = 1976, Model = "Ford" });
+            var result = await _controller.PostObjectWithBodyAsync(new Car { Year = 1976, Model = "Ford", FirstReleaseDate = new DateTime(1976, 02, 22, 15, 0, 6, 22) });
             result.Year.ShouldBe(1976);
             result.Model.ShouldBe("Ford");
         }
@@ -62,15 +92,26 @@ namespace Volo.Abp.Http.DynamicProxying
         [Fact]
         public async Task PostObjectWithQueryAsync()
         {
-            var result = await _controller.PostObjectWithQueryAsync(new Car { Year = 1976, Model = "Ford" });
+            var result = await _controller.PostObjectWithQueryAsync(new Car { Year = 1976, Model = "Ford", FirstReleaseDate = new DateTime(1976, 02, 22, 15, 0, 6, 22) });
             result.Year.ShouldBe(1976);
             result.Model.ShouldBe("Ford");
         }
 
         [Fact]
+        public async Task PostObjectWithQueryAsync_With_Different_Culture()
+        {
+            using (CultureHelper.Use("tr"))
+            {
+                var result = await _controller.PostObjectWithQueryAsync(new Car { Year = 1976, Model = "Ford", FirstReleaseDate = new DateTime(1976, 02, 22, 15, 0, 6, 22) });
+                result.Year.ShouldBe(1976);
+                result.Model.ShouldBe("Ford");
+            }
+        }
+
+        [Fact]
         public async Task GetObjectWithUrlAsync()
         {
-            var result = await _controller.GetObjectWithUrlAsync(new Car { Year = 1976, Model = "Ford" });
+            var result = await _controller.GetObjectWithUrlAsync(new Car { Year = 1976, Model = "Ford", FirstReleaseDate = new DateTime(1976, 02, 22, 15, 0, 6, 22) });
             result.Year.ShouldBe(1976);
             result.Model.ShouldBe("Ford");
         }
@@ -78,7 +119,7 @@ namespace Volo.Abp.Http.DynamicProxying
         [Fact]
         public async Task GetObjectandIdAsync()
         {
-            var result = await _controller.GetObjectandIdAsync(42, new Car { Year = 1976, Model = "Ford" });
+            var result = await _controller.GetObjectandIdAsync(42, new Car { Year = 1976, Model = "Ford", FirstReleaseDate = new DateTime(1976, 02, 22, 15, 0, 6, 22) });
             result.Year.ShouldBe(42);
             result.Model.ShouldBe("Ford");
         }
@@ -86,7 +127,7 @@ namespace Volo.Abp.Http.DynamicProxying
         [Fact]
         public async Task GetObjectAndIdWithQueryAsync()
         {
-            var result = await _controller.GetObjectAndIdWithQueryAsync(42, new Car { Year = 1976, Model = "Ford" });
+            var result = await _controller.GetObjectAndIdWithQueryAsync(42, new Car { Year = 1976, Model = "Ford", FirstReleaseDate = new DateTime(1976, 02, 22, 15, 0, 6, 22) });
             result.Year.ShouldBe(42);
             result.Model.ShouldBe("Ford");
         }
@@ -97,7 +138,7 @@ namespace Volo.Abp.Http.DynamicProxying
             var result = await _controller.PatchValueWithBodyAsync("mybody");
             result.ShouldBe("mybody");
         }
-        
+
         [Fact]
         public async Task PutValueWithHeaderAndQueryStringAsync()
         {

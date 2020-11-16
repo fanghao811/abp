@@ -1,6 +1,6 @@
 using System;
+using System.ComponentModel.DataAnnotations;
 using System.Reflection;
-using Volo.Abp.Reflection;
 
 namespace Volo.Abp.Http.Modeling
 {
@@ -13,33 +13,17 @@ namespace Volo.Abp.Http.Modeling
 
         public string TypeSimple { get; set; }
 
+        public bool IsRequired { get; set; }
+
         //TODO: Validation rules for this property
         public static PropertyApiDescriptionModel Create(PropertyInfo propertyInfo)
         {
-            string typeName;
-            string simpleTypeName;
-
-            if (TypeHelper.IsEnumerable(propertyInfo.PropertyType, out var itemType, includePrimitives: false))
-            {
-                typeName = $"[{ModelingTypeHelper.GetFullNameHandlingNullableAndGenerics(itemType)}]";
-                simpleTypeName = $"[{ModelingTypeHelper.GetSimplifiedName(itemType)}]";
-            }
-            else if (TypeHelper.IsDictionary(propertyInfo.PropertyType, out var keyType, out var valueType))
-            {
-                typeName = $"{{{ModelingTypeHelper.GetFullNameHandlingNullableAndGenerics(keyType)}:{ModelingTypeHelper.GetFullNameHandlingNullableAndGenerics(valueType)}}}";
-                simpleTypeName = $"{{{ModelingTypeHelper.GetSimplifiedName(keyType)}:{ModelingTypeHelper.GetSimplifiedName(valueType)}}}";
-            }
-            else
-            {
-                typeName = ModelingTypeHelper.GetFullNameHandlingNullableAndGenerics(propertyInfo.PropertyType);
-                simpleTypeName = ModelingTypeHelper.GetSimplifiedName(propertyInfo.PropertyType);
-            }
-            
             return new PropertyApiDescriptionModel
             {
                 Name = propertyInfo.Name,
-                Type = typeName,
-                TypeSimple = simpleTypeName
+                Type = ApiTypeNameHelper.GetTypeName(propertyInfo.PropertyType),
+                TypeSimple = ApiTypeNameHelper.GetSimpleTypeName(propertyInfo.PropertyType),
+                IsRequired = propertyInfo.IsDefined(typeof(RequiredAttribute), true)
             };
         }
     }

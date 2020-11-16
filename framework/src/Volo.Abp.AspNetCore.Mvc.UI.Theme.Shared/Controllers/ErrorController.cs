@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Localization.Resources.AbpUi;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
@@ -7,6 +8,7 @@ using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
 using Volo.Abp.AspNetCore.ExceptionHandling;
 using Volo.Abp.AspNetCore.Mvc.UI.Theme.Shared.Views.Error;
+using Volo.Abp.ExceptionHandling;
 
 namespace Volo.Abp.AspNetCore.Mvc.UI.Theme.Shared.Controllers
 {
@@ -16,20 +18,26 @@ namespace Volo.Abp.AspNetCore.Mvc.UI.Theme.Shared.Controllers
         private readonly IHttpExceptionStatusCodeFinder _statusCodeFinder;
         private readonly IStringLocalizer<AbpUiResource> _localizer;
         private readonly AbpErrorPageOptions _abpErrorPageOptions;
+        private readonly IExceptionNotifier _exceptionNotifier;
+        private readonly AbpExceptionHandlingOptions _exceptionHandlingOptions;
 
         public ErrorController(
             IExceptionToErrorInfoConverter exceptionToErrorInfoConverter,
             IHttpExceptionStatusCodeFinder httpExceptionStatusCodeFinder,
             IOptions<AbpErrorPageOptions> abpErrorPageOptions,
-            IStringLocalizer<AbpUiResource> localizer)
+            IStringLocalizer<AbpUiResource> localizer,
+            IExceptionNotifier exceptionNotifier,
+            IOptions<AbpExceptionHandlingOptions> exceptionHandlingOptions)
         {
             _errorInfoConverter = exceptionToErrorInfoConverter;
             _statusCodeFinder = httpExceptionStatusCodeFinder;
             _localizer = localizer;
+            _exceptionNotifier = exceptionNotifier;
+            _exceptionHandlingOptions = exceptionHandlingOptions.Value;
             _abpErrorPageOptions = abpErrorPageOptions.Value;
         }
 
-        public IActionResult Index(int httpStatusCode)
+        public async Task<IActionResult> Index(int httpStatusCode)
         {
             var exHandlerFeature = HttpContext.Features.Get<IExceptionHandlerFeature>();
 
@@ -37,7 +45,9 @@ namespace Volo.Abp.AspNetCore.Mvc.UI.Theme.Shared.Controllers
                 ? exHandlerFeature.Error
                 : new Exception(_localizer["UnhandledException"]);
 
-            var errorInfo = _errorInfoConverter.Convert(exception);
+            await _exceptionNotifier.NotifyAsync(new ExceptionNotificationContext(exception));
+
+            var errorInfo = _errorInfoConverter.Convert(exception, _exceptionHandlingOptions.SendExceptionsDetailsToClients);
 
             if (httpStatusCode == 0)
             {

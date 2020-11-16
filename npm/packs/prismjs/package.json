@@ -1,12 +1,13 @@
 {
-  "version": "2.3.0",
+  "version": "4.0.0-rc.2",
   "name": "@abp/prismjs",
   "publishConfig": {
     "access": "public"
   },
   "dependencies": {
-    "@abp/core": "^2.3.0",
-    "prismjs": "^1.17.1"
+    "@abp/clipboard": "~4.0.0-rc.2",
+    "@abp/core": "~4.0.0-rc.2",
+    "prismjs": "^1.20.0"
   },
-  "gitHead": "e5aead708928c668494ed0dbd7e8ae5c5ef9b9e7"
+  "gitHead": "bb4ea17d5996f01889134c138d00b6c8f858a431"
 }

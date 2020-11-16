@@ -18,9 +18,12 @@ namespace Volo.Abp.IdentityServer.MongoDB
         {
         }
 
-        public virtual async Task<List<IdentityResource>> GetListAsync(string sorting, int skipCount, int maxResultCount, bool includeDetails = false, CancellationToken cancellationToken = default)
+        public virtual async Task<List<IdentityResource>> GetListAsync(string sorting, int skipCount, int maxResultCount, string filter, bool includeDetails = false, CancellationToken cancellationToken = default)
         {
             return await GetMongoQueryable()
+                .WhereIf(!filter.IsNullOrWhiteSpace(), x => x.Name.Contains(filter) ||
+                         x.Description.Contains(filter) ||
+                         x.DisplayName.Contains(filter))
                 .OrderBy(sorting ?? nameof(IdentityResource.Name))
                 .As<IMongoQueryable<IdentityResource>>()
                 .PageBy<IdentityResource, IMongoQueryable<IdentityResource>>(skipCount, maxResultCount)
@@ -37,7 +40,7 @@ namespace Volo.Abp.IdentityServer.MongoDB
                 .FirstOrDefaultAsync(GetCancellationToken(cancellationToken));
         }
 
-        public virtual async Task<List<IdentityResource>> GetListByScopesAsync(string[] scopeNames, bool includeDetails = false,
+        public virtual async Task<List<IdentityResource>> GetListByScopeNameAsync(string[] scopeNames, bool includeDetails = false,
             CancellationToken cancellationToken = default)
         {
             return await GetMongoQueryable()

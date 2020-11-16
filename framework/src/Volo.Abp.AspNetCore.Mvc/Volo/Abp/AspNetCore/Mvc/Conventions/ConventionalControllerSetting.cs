@@ -18,6 +18,12 @@ namespace Volo.Abp.AspNetCore.Mvc.Conventions
         [NotNull]
         public HashSet<Type> ControllerTypes { get; } //TODO: Internal?
 
+        /// <summary>
+        /// Set true to use the old style URL path style.
+        /// Default: null (uses the value of the <see cref="AbpConventionalControllerOptions.UseV3UrlStyle"/>).
+        /// </summary>
+        public bool? UseV3UrlStyle { get; set; }
+
         [NotNull]
         public string RootPath
         {
@@ -29,6 +35,18 @@ namespace Volo.Abp.AspNetCore.Mvc.Conventions
             }
         }
         private string _rootPath;
+
+        [NotNull]
+        public string RemoteServiceName
+        {
+            get => _remoteServiceName;
+            set
+            {
+                Check.NotNull(value, nameof(value));
+                _remoteServiceName = value;
+            }
+        }
+        private string _remoteServiceName;
 
         [CanBeNull]
         public Func<Type, bool> TypePredicate { get; set; }
@@ -45,16 +63,17 @@ namespace Volo.Abp.AspNetCore.Mvc.Conventions
         public List<ApiVersion> ApiVersions { get; }
 
         public Action<ApiVersioningOptions> ApiVersionConfigurer { get; set; }
-        
-        public ConventionalControllerSetting([NotNull] Assembly assembly, [NotNull] string rootPath)
-        {
-            Check.NotNull(assembly, rootPath);
 
-            Assembly = assembly;
-            RootPath = rootPath;
+        public ConventionalControllerSetting(
+            [NotNull] Assembly assembly,
+            [NotNull] string rootPath,
+            [NotNull] string remoteServiceName)
+        {
+            Assembly = Check.NotNull(assembly, nameof(assembly));
+            RootPath = Check.NotNull(rootPath, nameof(rootPath));
+            RemoteServiceName = Check.NotNull(remoteServiceName, nameof(remoteServiceName));
 
             ControllerTypes = new HashSet<Type>();
-
             ApiVersions = new List<ApiVersion>();
         }
 

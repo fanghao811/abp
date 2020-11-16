@@ -7,6 +7,7 @@ using Volo.Abp.Account.Settings;
 using Volo.Abp.Account.Web.Areas.Account.Controllers.Models;
 using Volo.Abp.AspNetCore.Mvc;
 using Volo.Abp.Identity;
+using Volo.Abp.Identity.AspNetCore;
 using Volo.Abp.Settings;
 using Volo.Abp.Validation;
 using SignInResult = Microsoft.AspNetCore.Identity.SignInResult;
@@ -15,24 +16,30 @@ using IdentityUser = Volo.Abp.Identity.IdentityUser;
 
 namespace Volo.Abp.Account.Web.Areas.Account.Controllers
 {
-    [RemoteService]
+    [RemoteService(Name = AccountRemoteServiceConsts.RemoteServiceName)]
     [Controller]
     [ControllerName("Login")]
-    [Area("Account")]
+    [Area("account")]
     [Route("api/account")]
     public class AccountController : AbpController
     {
         protected SignInManager<IdentityUser> SignInManager { get; }
         protected IdentityUserManager UserManager { get; }
         protected ISettingProvider SettingProvider { get; }
+        protected IdentitySecurityLogManager IdentitySecurityLogManager { get; }
 
-        public AccountController(SignInManager<IdentityUser> signInManager, IdentityUserManager userManager, ISettingProvider settingProvider)
+        public AccountController(
+            SignInManager<IdentityUser> signInManager,
+            IdentityUserManager userManager,
+            ISettingProvider settingProvider,
+            IdentitySecurityLogManager identitySecurityLogManager)
         {
             LocalizationResource = typeof(AccountResource);
 
             SignInManager = signInManager;
             UserManager = userManager;
             SettingProvider = settingProvider;
+            IdentitySecurityLogManager = identitySecurityLogManager;
         }
 
         [HttpPost]
@@ -44,24 +51,46 @@ namespace Volo.Abp.Account.Web.Areas.Account.Controllers
             ValidateLoginInfo(login);
 
             await ReplaceEmailToUsernameOfInputIfNeeds(login);
-            
-            return GetAbpLoginResult(await SignInManager.PasswordSignInAsync(
+            var signInResult = await SignInManager.PasswordSignInAsync(
                 login.UserNameOrEmailAddress,
                 login.Password,
                 login.RememberMe,
                 true
-            ));
+            );
+
+            await IdentitySecurityLogManager.SaveAsync(new IdentitySecurityLogContext()
+            {
+                Identity = IdentitySecurityLogIdentityConsts.Identity,
+                Action = signInResult.ToIdentitySecurityLogAction(),
+                UserName = login.UserNameOrEmailAddress
+            });
+
+            return GetAbpLoginResult(signInResult);
         }
 
         [HttpGet]
         [Route("logout")]
         public virtual async Task Logout()
         {
-           await SignInManager.SignOutAsync();
+            await IdentitySecurityLogManager.SaveAsync(new IdentitySecurityLogContext()
+            {
+                Identity = IdentitySecurityLogIdentityConsts.Identity,
+                Action = IdentitySecurityLogActionConsts.Logout
+            });
+
+            await SignInManager.SignOutAsync();
         }
 
         [HttpPost]
         [Route("checkPassword")]
+        [ApiExplorerSettings(IgnoreApi = true)]
+        public virtual Task<AbpLoginResult> CheckPasswordCompatible(UserLoginInfo login)
+        {
+            return CheckPassword(login);
+        }
+
+        [HttpPost]
+        [Route("check-password")]
         public virtual async Task<AbpLoginResult> CheckPassword(UserLoginInfo login)
         {
             ValidateLoginInfo(login);

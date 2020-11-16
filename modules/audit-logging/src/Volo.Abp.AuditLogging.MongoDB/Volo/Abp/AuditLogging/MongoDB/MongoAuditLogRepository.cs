@@ -7,6 +7,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using MongoDB.Driver;
 using MongoDB.Driver.Linq;
+using Volo.Abp.Auditing;
+using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories.MongoDB;
 using Volo.Abp.MongoDB;
 
@@ -137,6 +139,107 @@ namespace Volo.Abp.AuditLogging.MongoDB
                 .ToListAsync();
 
             return result.ToDictionary(element => element.Day.ClearTime(), element => element.avgExecutionTime);
+        }
+
+        public virtual async Task<EntityChange> GetEntityChange(Guid entityChangeId)
+        {
+            var entityChange = (await GetMongoQueryable()
+                .Where(x => x.EntityChanges.Any(y => y.Id == entityChangeId))
+                .FirstAsync()).EntityChanges.FirstOrDefault(x => x.Id == entityChangeId);
+            
+            
+            if (entityChange == null)
+            {
+                throw new EntityNotFoundException(typeof(EntityChange));
+            }
+
+            return entityChange;
+        }
+
+        public virtual async Task<List<EntityChange>> GetEntityChangeListAsync(
+            string sorting = null,
+            int maxResultCount = 50,
+            int skipCount = 0,
+            Guid? auditLogId = null,
+            DateTime? startTime = null,
+            DateTime? endTime = null,
+            EntityChangeType? changeType = null,
+            string entityId = null,
+            string entityTypeFullName = null,
+            bool includeDetails = false,
+            CancellationToken cancellationToken = default)
+        {
+            var query = GetEntityChangeListQuery(auditLogId, startTime, endTime, changeType, entityId, entityTypeFullName);
+
+            var auditLogs = await query.As<IMongoQueryable<EntityChange>>()
+                .PageBy<EntityChange, IMongoQueryable<EntityChange>>(skipCount, maxResultCount)
+                .ToListAsync(GetCancellationToken(cancellationToken));
+            
+            return auditLogs.AsQueryable().OrderBy(sorting ?? "changeTime desc").ToList();
+        }
+
+        public virtual async Task<long> GetEntityChangeCountAsync(
+            Guid? auditLogId = null,
+            DateTime? startTime = null,
+            DateTime? endTime = null,
+            EntityChangeType? changeType = null,
+            string entityId = null,
+            string entityTypeFullName = null,
+            CancellationToken cancellationToken = default)
+        {
+            var query = GetEntityChangeListQuery(auditLogId, startTime, endTime, changeType, entityId, entityTypeFullName);
+            
+            var count = await query.As<IMongoQueryable<EntityChange>>().LongCountAsync(GetCancellationToken(cancellationToken));
+
+            return count;
+        }
+
+        public virtual async Task<EntityChangeWithUsername> GetEntityChangeWithUsernameAsync(Guid entityChangeId)
+        {
+            var auditLog = (await GetMongoQueryable()
+                            .Where(x => x.EntityChanges.Any(y => y.Id == entityChangeId))
+                            .FirstAsync());
+
+            return new EntityChangeWithUsername()
+            {
+                EntityChange = auditLog.EntityChanges.First(x => x.Id == entityChangeId),
+                UserName = auditLog.UserName
+            };
+        }
+
+        public virtual async Task<List<EntityChangeWithUsername>> GetEntityChangesWithUsernameAsync(string entityId, string entityTypeFullName)
+        {
+            var auditLogs = await GetMongoQueryable()
+                            .Where(x => x.EntityChanges.Any(y => y.EntityId == entityId && y.EntityTypeFullName == entityTypeFullName))
+                            .As<IMongoQueryable<AuditLog>>()
+                            .OrderByDescending(x => x.ExecutionTime)
+                            .ToListAsync();
+
+            var entityChanges = auditLogs.SelectMany(x => x.EntityChanges).ToList();
+            
+            entityChanges.RemoveAll(x => x.EntityId != entityId || x.EntityTypeFullName != entityTypeFullName);
+
+            return entityChanges.Select(x => new EntityChangeWithUsername()
+                {EntityChange = x, UserName = auditLogs.First(y => y.Id == x.AuditLogId).UserName}).ToList();
+        }
+
+        protected virtual IQueryable<EntityChange> GetEntityChangeListQuery(
+            Guid? auditLogId = null,
+            DateTime? startTime = null,
+            DateTime? endTime = null,
+            EntityChangeType? changeType = null,
+            string entityId = null,
+            string entityTypeFullName = null)
+        {
+            return GetMongoQueryable()
+                    .SelectMany(x => x.EntityChanges)
+                    .WhereIf(auditLogId.HasValue, e => e.Id == auditLogId)
+                    .WhereIf(startTime.HasValue, e => e.ChangeTime >= startTime)
+                    .WhereIf(endTime.HasValue, e => e.ChangeTime <= endTime)
+                    .WhereIf(changeType.HasValue, e => e.ChangeType == changeType)
+                    .WhereIf(!string.IsNullOrWhiteSpace(entityId), e => e.EntityId == entityId)
+                    .WhereIf(!string.IsNullOrWhiteSpace(entityTypeFullName),
+                        e => e.EntityTypeFullName.Contains(entityTypeFullName));
         }
     }
 }

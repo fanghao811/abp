@@ -1,4 +1,4 @@
-# Dynamic C# API Clients
+# Dynamic C# API Client Proxies
 
 ABP can dynamically create C# API client proxies to call remote HTTP services (REST APIs). In this way, you don't need to deal with `HttpClient` and other low level HTTP features to call remote services and get results.
 
@@ -39,7 +39,7 @@ Now, it's ready to create the client proxies. Example:
 ````csharp
 [DependsOn(
     typeof(AbpHttpClientModule), //used to create client proxies
-    typeof(BookStoreApplicationModule) //contains the application service interfaces
+    typeof(BookStoreApplicationContractsModule) //contains the application service interfaces
     )]
 public class MyClientAppModule : AbpModule
 {
@@ -47,7 +47,7 @@ public class MyClientAppModule : AbpModule
     {
         //Create dynamic client proxies
         context.Services.AddHttpClientProxies(
-            typeof(BookStoreApplicationModule).Assembly
+            typeof(BookStoreApplicationContractsModule).Assembly
         );
     }
 }
@@ -69,7 +69,7 @@ public class MyClientAppModule : AbpModule
 }
 ````
 
-See the "RemoteServiceOptions" section below for more detailed configuration.
+See the "AbpRemoteServiceOptions" section below for more detailed configuration.
 
 ## Usage
 
@@ -104,7 +104,7 @@ While you can inject `IBookAppService` like above to use the client proxy, you c
 
 ## Configuration
 
-### RemoteServiceOptions
+### AbpRemoteServiceOptions
 
 `AbpRemoteServiceOptions` is automatically set from the `appsettings.json` by default. Alternatively, you can use `Configure` method to set or override it. Example:
 
@@ -142,12 +142,12 @@ The examples above have configured the "Default" remote service endpoint. You ma
 
 ````csharp
 context.Services.AddHttpClientProxies(
-    typeof(BookStoreApplicationModule).Assembly,
-    remoteServiceName: "BookStore"
+    typeof(BookStoreApplicationContractsModule).Assembly,
+    remoteServiceConfigurationName: "BookStore"
 );
 ````
 
-`remoteServiceName` parameter matches the service endpoint configured via `AbpRemoteServiceOptions`. If the `BookStore` endpoint is not defined then it fallbacks to the `Default` endpoint.
+`remoteServiceConfigurationName` parameter matches the service endpoint configured via `AbpRemoteServiceOptions`. If the `BookStore` endpoint is not defined then it fallbacks to the `Default` endpoint.
 
 ### As Default Services
 
@@ -155,11 +155,11 @@ When you create a service proxy for `IBookAppService`, you can directly inject t
 
 ````csharp
 context.Services.AddHttpClientProxies(
-    typeof(BookStoreApplicationModule).Assembly,
+    typeof(BookStoreApplicationContractsModule).Assembly,
     asDefaultServices: false
 );
 ````
 
 Using `asDefaultServices: false` may only be needed if your application has already an implementation of the service and you do not want to override/replace the other implementation by your client proxy.
 
-> If you disable `asDefaultServices`, you can only use `IHttpClientProxy<T>` interface to use the client proxies (see the related section above).
+> If you disable `asDefaultServices`, you can only use `IHttpClientProxy<T>` interface to use the client proxies. See the *IHttpClientProxy Interface* section above.

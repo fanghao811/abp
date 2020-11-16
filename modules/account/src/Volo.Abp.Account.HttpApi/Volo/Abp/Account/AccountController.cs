@@ -5,7 +5,7 @@ using Volo.Abp.Identity;
 
 namespace Volo.Abp.Account
 {
-    [RemoteService]
+    [RemoteService(Name = AccountRemoteServiceConsts.RemoteServiceName)]
     [Area("account")]
     [Route("api/account")]
     public class AccountController : AbpController, IAccountAppService
@@ -22,6 +22,20 @@ namespace Volo.Abp.Account
         public virtual Task<IdentityUserDto> RegisterAsync(RegisterDto input)
         {
             return AccountAppService.RegisterAsync(input);
+        }
+
+        [HttpPost]
+        [Route("send-password-reset-code")]
+        public virtual Task SendPasswordResetCodeAsync(SendPasswordResetCodeDto input)
+        {
+            return AccountAppService.SendPasswordResetCodeAsync(input);
+        }
+
+        [HttpPost]
+        [Route("reset-password")]
+        public virtual Task ResetPasswordAsync(ResetPasswordDto input)
+        {
+            return AccountAppService.ResetPasswordAsync(input);
         }
     }
 }

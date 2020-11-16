@@ -1,6 +1,7 @@
-import { ABP } from '@abp/ng.core';
-import { ConfirmationService, Toaster } from '@abp/ng.theme.shared';
-import { Component, OnInit, TemplateRef, ViewChild, ChangeDetectorRef } from '@angular/core';
+import { ListService, PagedResultDto } from '@abp/ng.core';
+import { eFeatureManagementComponents } from '@abp/ng.feature-management';
+import { Confirmation, ConfirmationService, getPasswordValidators } from '@abp/ng.theme.shared';
+import { Component, Injector, OnInit, TemplateRef, ViewChild } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Select, Store } from '@ngxs/store';
 import { Observable } from 'rxjs';
@@ -12,7 +13,8 @@ import {
   GetTenants,
   UpdateTenant,
 } from '../../actions/tenant-management.actions';
-import { TenantManagementService } from '../../services/tenant-management.service';
+import { GetTenantsInput, TenantDto } from '../../proxy/models';
+import { TenantService } from '../../proxy/tenant.service';
 import { TenantManagementState } from '../../states/tenant-management.state';
 
 interface SelectedModalContent {
@@ -24,15 +26,16 @@ interface SelectedModalContent {
 @Component({
   selector: 'abp-tenants',
   templateUrl: './tenants.component.html',
+  providers: [ListService],
 })
 export class TenantsComponent implements OnInit {
   @Select(TenantManagementState.get)
-  data$: Observable<ABP.BasicItem[]>;
+  data$: Observable<PagedResultDto<TenantDto>>;
 
   @Select(TenantManagementState.getTenantsTotalCount)
   totalCount$: Observable<number>;
 
-  selected: ABP.BasicItem;
+  selected: TenantDto;
 
   tenantForm: FormGroup;
 
@@ -50,15 +53,9 @@ export class TenantsComponent implements OnInit {
 
   _useSharedDatabase: boolean;
 
-  pageQuery: ABP.PageQueryParams = { maxResultCount: 10 };
-
-  loading = false;
-
   modalBusy = false;
 
-  sortOrder = '';
-
-  sortKey = '';
+  featureManagementKey = eFeatureManagementComponents.FeatureManagement;
 
   get hasSelectedTenant(): boolean {
     return Boolean(this.selected.id);
@@ -72,10 +69,10 @@ export class TenantsComponent implements OnInit {
     return this.defaultConnectionStringForm.get('defaultConnectionString').value;
   }
 
-  @ViewChild('tenantModalTemplate', { static: false })
+  @ViewChild('tenantModalTemplate')
   tenantModalTemplate: TemplateRef<any>;
 
-  @ViewChild('connectionStringModalTemplate', { static: false })
+  @ViewChild('connectionStringModalTemplate')
   connectionStringModalTemplate: TemplateRef<any>;
 
   get isDisabledSaveButton(): boolean {
@@ -103,26 +100,23 @@ export class TenantsComponent implements OnInit {
   };
 
   constructor(
+    public readonly list: ListService<GetTenantsInput>,
+    private injector: Injector,
     private confirmationService: ConfirmationService,
-    private tenantService: TenantManagementService,
+    private tenantService: TenantService,
     private fb: FormBuilder,
     private store: Store,
   ) {}
 
   ngOnInit() {
-    this.get();
-  }
-
-  onSearch(value: string) {
-    this.pageQuery.filter = value;
-    this.get();
+    this.hookToQuery();
   }
 
   private createTenantForm() {
     const tenantForm = this.fb.group({
       name: [this.selected.name || '', [Validators.required, Validators.maxLength(256)]],
       adminEmailAddress: [null, [Validators.required, Validators.maxLength(256), Validators.email]],
-      adminPassword: [null, [Validators.required]],
+      adminPassword: [null, [Validators.required, ...getPasswordValidators(this.injector)]],
     });
 
     if (this.hasSelectedTenant) {
@@ -173,7 +167,7 @@ export class TenantsComponent implements OnInit {
   }
 
   addTenant() {
-    this.selected = {} as ABP.BasicItem;
+    this.selected = {} as TenantDto;
     this.createTenantForm();
     this.openModal('AbpTenantManagement::NewTenant', this.tenantModalTemplate, 'saveTenant');
   }
@@ -212,10 +206,7 @@ export class TenantsComponent implements OnInit {
         });
     } else {
       this.tenantService
-        .updateDefaultConnectionString({
-          id: this.selected.id,
-          defaultConnectionString: this.connectionString,
-        })
+        .updateDefaultConnectionString(this.selected.id, this.connectionString)
         .pipe(
           take(1),
           finalize(() => (this.modalBusy = false)),
@@ -239,7 +230,7 @@ export class TenantsComponent implements OnInit {
       .pipe(finalize(() => (this.modalBusy = false)))
       .subscribe(() => {
         this.isModalVisible = false;
-        this.get();
+        this.list.get();
       });
   }
 
@@ -252,25 +243,15 @@ export class TenantsComponent implements OnInit {
           messageLocalizationParams: [name],
         },
       )
-      .subscribe((status: Toaster.Status) => {
-        if (status === Toaster.Status.confirm) {
-          this.store.dispatch(new DeleteTenant(id)).subscribe(() => this.get());
+      .subscribe((status: Confirmation.Status) => {
+        if (status === Confirmation.Status.confirm) {
+          this.store.dispatch(new DeleteTenant(id)).subscribe(() => this.list.get());
         }
       });
   }
 
-  onPageChange(page: number) {
-    this.pageQuery.skipCount = (page - 1) * this.pageQuery.maxResultCount;
-
-    this.get();
-  }
-
-  get() {
-    this.loading = true;
-    this.store
-      .dispatch(new GetTenants(this.pageQuery))
-      .pipe(finalize(() => (this.loading = false)))
-      .subscribe();
+  hookToQuery() {
+    this.list.hookToQuery(query => this.store.dispatch(new GetTenants(query))).subscribe();
   }
 
   onSharedDatabaseChange(value: boolean) {
@@ -291,5 +272,11 @@ export class TenantsComponent implements OnInit {
     setTimeout(() => {
       this.visibleFeatures = true;
     }, 0);
+  }
+
+  sort(data) {
+    const { prop, dir } = data.sorts[0];
+    this.list.sortKey = prop;
+    this.list.sortOrder = dir;
   }
 }

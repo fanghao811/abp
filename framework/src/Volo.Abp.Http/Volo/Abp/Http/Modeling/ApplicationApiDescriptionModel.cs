@@ -12,9 +12,9 @@ namespace Volo.Abp.Http.Modeling
 
         public IDictionary<string, TypeApiDescriptionModel> Types { get; set; }
 
-        private ApplicationApiDescriptionModel()
+        public ApplicationApiDescriptionModel()
         {
-            
+
         }
 
         public static ApplicationApiDescriptionModel Create()
@@ -36,9 +36,9 @@ namespace Volo.Abp.Http.Modeling
             return Modules[module.RootPath] = module;
         }
 
-        public ModuleApiDescriptionModel GetOrAddModule(string rootPath)
+        public ModuleApiDescriptionModel GetOrAddModule(string rootPath, string remoteServiceName)
         {
-            return Modules.GetOrAdd(rootPath, () => ModuleApiDescriptionModel.Create(rootPath));
+            return Modules.GetOrAdd(rootPath, () => ModuleApiDescriptionModel.Create(rootPath, remoteServiceName));
         }
 
         public ApplicationApiDescriptionModel CreateSubModel(string[] modules = null, string[] controllers = null, string[] actions = null)

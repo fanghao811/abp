@@ -1,7 +1,3 @@
-﻿/**
- * TODO: Document & prepare typescript definitions
- * TODO: Refactor & test more
- */
 var abp = abp || {};
 
 $.validator.defaults.ignore = ''; //TODO: Would be better if we can apply only for the form we are working on! Also this should be decided by the form itself!
@@ -12,7 +8,7 @@ $.validator.defaults.ignore = ''; //TODO: Would be better if we can apply only f
 
     abp.ModalManager = (function () {
 
-        var CallbackList = function () { //TODO: To a seperated file
+        var CallbackList = function () {
             var _callbacks = [];
 
             return {
@@ -49,6 +45,7 @@ $.validator.defaults.ignore = ''; //TODO: Would be better if we can apply only f
             var _publicApi = null;
             var _args = null;
 
+            var _onOpenCallbacks = new CallbackList();
             var _onCloseCallbacks = new CallbackList();
             var _onResultCallbacks = new CallbackList();
 
@@ -66,12 +63,11 @@ $.validator.defaults.ignore = ''; //TODO: Would be better if we can apply only f
                 _$modal = _$modalContainer.find('.modal');
                 _$form = _$modalContainer.find('form');
                 if (_$form.length) {
-                    //TODO: data-ajaxForm comparison seems wrong!
-                    if (_$form.attr('data-ajaxForm') === undefined || _$form.attr('data-ajaxForm') === false) {
+                    if (_$form.attr('data-ajaxForm') !== 'false') {
                         _$form.abpAjaxForm();
                     }
 
-                    if (_$form.attr('data-check-form-on-close') === undefined || _$form.attr('data-check-form-on-close') != 'false') {
+                    if (_$form.attr('data-check-form-on-close') !== 'false') {
                         _$form.needConfirmationOnUnsavedClose(_$modal);
                     }
 
@@ -94,8 +90,11 @@ $.validator.defaults.ignore = ''; //TODO: Would be better if we can apply only f
                 });
 
                 _$modal.on('shown.bs.modal', function () {
-                    //focuses first element if it's a typeable input. 
+                    //focuses first element if it's a typeable input.
                     var $firstVisibleInput = _$modal.find('input:not([type=hidden]):first');
+
+                    _onOpenCallbacks.triggerAll(_publicApi);
+
                     if ($firstVisibleInput.hasClass("datepicker")) {
                         return; //don't pop-up date pickers...
                     }
@@ -147,6 +146,10 @@ $.validator.defaults.ignore = ''; //TODO: Would be better if we can apply only f
                 _$modal.modal('hide');
             };
 
+            var _onOpen = function (onOpenCallback) {
+                _onOpenCallbacks.add(onOpenCallback);
+            };
+
             var _onClose = function (onCloseCallback) {
                 _onCloseCallbacks.add(onCloseCallback);
             };
@@ -187,6 +190,8 @@ $.validator.defaults.ignore = ''; //TODO: Would be better if we can apply only f
                 setResult: function () {
                     _onResultCallbacks.triggerAll(_publicApi, arguments);
                 },
+
+                onOpen: _onOpen,
 
                 onClose: _onClose,
 

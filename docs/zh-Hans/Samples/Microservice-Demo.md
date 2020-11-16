@@ -28,7 +28,7 @@ ABP框架的主要目标之一就是提供[便捷的基础设施来创建微服�
 
 ### 源码
 
-你可以从[GitHub仓库](https://github.com/abpframework/abp/tree/master/samples/MicroserviceDemo)获取源码.
+你可以从[GitHub仓库](https://github.com/abpframework/abp-samples/tree/master/MicroserviceDemo)获取源码.
 
 ## 运行解决方案
 
@@ -43,6 +43,12 @@ ABP框架的主要目标之一就是提供[便捷的基础设施来创建微服�
 * [ElasticSearch](https://www.elastic.co/downloads/elasticsearch) 6.6+
 * [Kibana](https://www.elastic.co/downloads/kibana) 6.6+ (可选,建议显示日志)
 
+### 运行基础设施
+
+- 默认情况下运行Docker-compose可以轻松运行预先要求. 如果你没有安装,在windows环境下你可以在[这里](https://docs.docker.com/docker-for-windows/install/)下载并使用[Docker for Windows](https://docs.docker.com/docker-for-windows/).
+* 在 `MicroserviceDemo` 目录下运行命令 `docker-compose -f docker-compose.infrastructure.yml -f docker-compose.infrastructure.override.yml up -d` 或使用powershell运行 `MicroserviceDemo/_run` 文件夹下的 `__Run_Infrastructure.ps1` 脚本.
+* 如果你不想使用docker运行预先要求的服务在你的本地环境,你需要更改微服务示例解决方案项目中的 `appsettings.json` 文件.
+
 ### 打开并构建Visual Studio解决方案
 
 * 在Visual Studio 2017 (15.9.0+)中打开`samples\MicroserviceDemo\MicroserviceDemo.sln`.
@@ -51,13 +57,13 @@ ABP框架的主要目标之一就是提供[便捷的基础设施来创建微服�
 
 ### 创建数据库
 
-MongoDB 数据库是动态创建的，但是你需要创建 SQL server 数据库的结构。其实你可以很轻松的创建数据库，因为这个解决方案配置了使用 Entity Core Code First 来做迁移。
+MongoDB 数据库是动态创建的,但是你需要创建 SQL server 数据库的结构.其实你可以很轻松的创建数据库,因为这个解决方案配置了使用 Entity Core Code First 来做迁移.
 
-这个解决方案中有两个 SQL server 数据库。
+这个解决方案中有两个 SQL server 数据库.
 
 #### MsDemo_Identity 数据库
 
-* 右键 `AuthServer.Host` 项目，然后点击 `设置为启动项目`.
+* 右键 `AuthServer.Host` 项目,然后点击 `设置为启动项目`.
 * 打开 **程序包管理器控制台** (工具 -> NuGet 包管理器 -> 程序包管理器控制台)
 * 选择 `AuthServer.Host` 成为 **默认项目**.
 * 执行 `Update-Database` 命令.
@@ -66,7 +72,7 @@ MongoDB 数据库是动态创建的，但是你需要创建 SQL server 数据库
 
 #### MsDemo_ProductManagement
 
-* 右键 `ProductService.Host` 项目，然后点击 `设置为启动项目`.
+* 右键 `ProductService.Host` 项目,然后点击 `设置为启动项目`.
 * 打开 **程序包管理器控制台** (工具 -> NuGet 包管理器 -> 程序包管理器控制台)
 * 选择 `ProductService.Host` 成为 **默认项目**.
 * 执行 `Update-Database` 命令.
@@ -334,7 +340,7 @@ context.Services.AddAuthentication(options =>
 - 它需要额外的身份范围 *role*, *email* and *phone*.
 - 它需要API资源范围 *PublicWebSiteGateway*,*BloggingService*和*ProductService*,因为它将这些服务用作API.
 
-IdentityServer客户端设置存储在`appsettings.json`文件中：
+IdentityServer客户端设置存储在`appsettings.json`文件中:
 
 ```json
 "AuthServer": {
@@ -348,7 +354,7 @@ IdentityServer客户端设置存储在`appsettings.json`文件中：
 
 PublicWebSite.Host项目有一个列出产品的页面 (`Pages/Products.cshtml`). 它还使用博客模块中的UI. 为此`PublicWebSiteHostModule`加入了`BloggingWebModule`(*[Volo.Blogging.Web](https://www.nuget.org/packages/Volo.Blogging.Web)* 包)的依赖项.
 
-产品页面的屏幕截图：
+产品页面的屏幕截图:
 
 ![microservice-sample-public-product-list](../images/microservice-sample-public-product-list.png)
 
@@ -390,7 +396,7 @@ PublicWebSite.Host项目有一个列出产品的页面 (`Pages/Products.cshtml`)
 
 #### 远程服务配置
 
-`appsettings.json`文件中的`RemoteService`配置很简单：
+`appsettings.json`文件中的`RemoteService`配置很简单:
 
 ````json
 "RemoteServices": {
@@ -418,7 +424,7 @@ PublicWebSite.Host项目有一个列出产品的页面 (`Pages/Products.cshtml`)
 }
 ````
 
-此示例使用`client_credentials` 授予类型,该类型需要`ClientId`和`ClientSecret`进行身份验证过程. 还有[其他授予类型](http://docs.identityserver.io/en/latest/topics/grant_types.html). 例如, 你可以使用以下配置切换到`password`(Resource Owner Password)授予类型：
+此示例使用`client_credentials` 授予类型,该类型需要`ClientId`和`ClientSecret`进行身份验证过程. 还有[其他授予类型](http://docs.identityserver.io/en/latest/topics/grant_types.html). 例如, 你可以使用以下配置切换到`password`(Resource Owner Password)授予类型:
 
 ````json
 "IdentityClients": {
@@ -553,7 +559,7 @@ app.MapWhen(ctx => ctx.Request.Path.ToString().StartsWith("/api/abp/") ||
                    ctx.Request.Path.ToString().StartsWith("/Abp/"),
     app2 =>
     {
-        app2.UseMvcWithDefaultRouteAndArea();
+        app2.UseConfiguredEndpoints();
     });
 
 app.UseOcelot().Wait();
@@ -571,7 +577,7 @@ app.UseOcelot().Wait();
 
 #### 权限管理
 
-后端管理应用程序提供权限管理UI(之前见过),并使用此网关获取/设置权限. 权限管理API托管在网关内,而不是单独的服务. 这是一个设计决策,但如果您愿意,它可以作为另一个微服务托管.
+后端管理应用程序提供权限管理UI(之前见过),并使用此网关获取/设置权限. 权限管理API托管在网关内,而不是单独的服务. 这是一个设计决策,但如果你愿意,它可以作为另一个微服务托管.
 
 #### Dependencies
 
@@ -1229,7 +1235,7 @@ public class ProductCodeAlreadyExistsException : BusinessException
 }
 ````
 
-`PM：000001`是发送给客户端的异常类型的代码,因此他们可以理解错误类型. 在这种情况下没有实现,但也可以本地化业务异常. 请参阅[异常处理文档](../Exception-Handling.md).
+`PM:000001`是发送给客户端的异常类型的代码,因此他们可以理解错误类型. 在这种情况下没有实现,但也可以本地化业务异常. 请参阅[异常处理文档](../Exception-Handling.md).
 
 #### 应用层
 
@@ -1278,7 +1284,7 @@ public async Task<ProductDto> UpdateAsync(Guid id, UpdateProductDto input)
 
 分布式事件(事件总线)是一种消息传递方式,其中服务引发/触发事件,而其他服务注册/侦听这些事件,以便在发生重要事件时得到通知. ABP通过提供约定,服务和集成使分布式事件更易于使用.
 
-您已经看到`Product`类使用以下代码行发布事件:
+你已经看到`Product`类使用以下代码行发布事件:
 
 ````csharp
 AddDistributedEvent(new ProductStockCountChangedEto(Id, StockCount, stockCount));
@@ -1406,7 +1412,7 @@ Kibana URL默认为`http://localhost:5601/`.
 
 ABP提供自动审计日志记录,详细保存每个请求(当前用户,浏览器/客户端,执行了哪些操作,哪些实体更改,甚至实体的哪些属性已更新). 有关详细信息,请参阅[审计日志文档](../Audit-Logging.md).
 
-所有服务和应用程序都配置为编写审核日志. 审核日志将保存到MsDemo_Identity SQL数据库中. 因此,您可以从单个点查询所有应用程序的所有审核日志.
+所有服务和应用程序都配置为编写审核日志. 审核日志将保存到MsDemo_Identity SQL数据库中. 因此,你可以从单个点查询所有应用程序的所有审核日志.
 
 审核日志记录具有`CorrelationId`属性,可用于跟踪请求. 当服务在单个Web请求中调用另一个服务时,它们都会使用相同的`CorrelationId`保存审核日志. 请参阅数据库中的`AbpAuditLogs`表.
 

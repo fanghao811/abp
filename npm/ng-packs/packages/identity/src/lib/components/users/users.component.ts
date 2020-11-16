@@ -1,6 +1,14 @@
-import { ABP, ConfigState } from '@abp/ng.core';
-import { ConfirmationService, Confirmation } from '@abp/ng.theme.shared';
-import { Component, OnInit, TemplateRef, TrackByFunction, ViewChild } from '@angular/core';
+import { ListService } from '@abp/ng.core';
+import { ePermissionManagementComponents } from '@abp/ng.permission-management';
+import { Confirmation, ConfirmationService, getPasswordValidators } from '@abp/ng.theme.shared';
+import {
+  Component,
+  Injector,
+  OnInit,
+  TemplateRef,
+  TrackByFunction,
+  ViewChild,
+} from '@angular/core';
 import {
   AbstractControl,
   FormArray,
@@ -9,7 +17,6 @@ import {
   FormGroup,
   Validators,
 } from '@angular/forms';
-import { PasswordRules, validatePassword } from '@ngx-validate/core';
 import { Select, Store } from '@ngxs/store';
 import { Observable } from 'rxjs';
 import { finalize, pluck, switchMap, take } from 'rxjs/operators';
@@ -23,15 +30,22 @@ import {
   UpdateUser,
 } from '../../actions/identity.actions';
 import { Identity } from '../../models/identity';
+import { IdentityUserService } from '../../proxy/identity/identity-user.service';
+import {
+  GetIdentityUsersInput,
+  IdentityRoleDto,
+  IdentityUserDto,
+} from '../../proxy/identity/models';
 import { IdentityState } from '../../states/identity.state';
-import { IdentityService } from '../../services/identity.service';
+
 @Component({
   selector: 'abp-users',
   templateUrl: './users.component.html',
+  providers: [ListService],
 })
 export class UsersComponent implements OnInit {
   @Select(IdentityState.getUsers)
-  data$: Observable<Identity.UserItem[]>;
+  data$: Observable<IdentityUserDto[]>;
 
   @Select(IdentityState.getUsersTotalCount)
   totalCount$: Observable<number>;
@@ -41,31 +55,21 @@ export class UsersComponent implements OnInit {
 
   form: FormGroup;
 
-  selected: Identity.UserItem;
+  selected: IdentityUserDto;
 
-  selectedUserRoles: Identity.RoleItem[];
+  selectedUserRoles: IdentityRoleDto[];
 
-  roles: Identity.RoleItem[];
+  roles: IdentityRoleDto[];
 
   visiblePermissions = false;
 
   providerKey: string;
 
-  pageQuery: ABP.PageQueryParams = { maxResultCount: 10 };
-
   isModalVisible: boolean;
-
-  loading = false;
 
   modalBusy = false;
 
-  sortOrder = '';
-
-  sortKey = '';
-
-  passwordRulesArr = [] as PasswordRules;
-
-  requiredPasswordLength = 1;
+  permissionManagementKey = ePermissionManagementComponents.PermissionManagement;
 
   trackByFn: TrackByFunction<AbstractControl> = (index, item) => Object.keys(item)[0] || index;
 
@@ -78,49 +82,20 @@ export class UsersComponent implements OnInit {
   }
 
   constructor(
+    public readonly list: ListService<GetIdentityUsersInput>,
+    private injector: Injector,
     private confirmationService: ConfirmationService,
     private fb: FormBuilder,
     private store: Store,
-    private identityService: IdentityService,
+    private identityUserService: IdentityUserService,
   ) {}
 
   ngOnInit() {
-    this.get();
-
-    const passwordRules: ABP.Dictionary<string> = this.store.selectSnapshot(
-      ConfigState.getSettings('Identity.Password'),
-    );
-
-    if ((passwordRules['Abp.Identity.Password.RequireDigit'] || '').toLowerCase() === 'true') {
-      this.passwordRulesArr.push('number');
-    }
-
-    if ((passwordRules['Abp.Identity.Password.RequireLowercase'] || '').toLowerCase() === 'true') {
-      this.passwordRulesArr.push('small');
-    }
-
-    if ((passwordRules['Abp.Identity.Password.RequireUppercase'] || '').toLowerCase() === 'true') {
-      this.passwordRulesArr.push('capital');
-    }
-
-    if (
-      (passwordRules['Abp.Identity.Password.RequireNonAlphanumeric'] || '').toLowerCase() === 'true'
-    ) {
-      this.passwordRulesArr.push('special');
-    }
-
-    if (Number.isInteger(+passwordRules['Abp.Identity.Password.RequiredLength'])) {
-      this.requiredPasswordLength = +passwordRules['Abp.Identity.Password.RequiredLength'];
-    }
-  }
-
-  onSearch(value: string) {
-    this.pageQuery.filter = value;
-    this.get();
+    this.hookToQuery();
   }
 
   buildForm() {
-    this.identityService.getAllRoles().subscribe(({ items }) => {
+    this.identityUserService.getAssignableRoles().subscribe(({ items }) => {
       this.roles = items;
       this.form = this.fb.group({
         userName: [this.selected.userName || '', [Validators.required, Validators.maxLength(256)]],
@@ -131,8 +106,7 @@ export class UsersComponent implements OnInit {
         name: [this.selected.name || '', [Validators.maxLength(64)]],
         surname: [this.selected.surname || '', [Validators.maxLength(64)]],
         phoneNumber: [this.selected.phoneNumber || '', [Validators.maxLength(16)]],
-        lockoutEnabled: [this.selected.lockoutEnabled || (this.selected.id ? false : true)],
-        twoFactorEnabled: [this.selected.twoFactorEnabled || (this.selected.id ? false : true)],
+        lockoutEnabled: [this.selected.id ? this.selected.lockoutEnabled : true],
         roleNames: this.fb.array(
           this.roles.map(role =>
             this.fb.group({
@@ -146,11 +120,7 @@ export class UsersComponent implements OnInit {
         ),
       });
 
-      const passwordValidators = [
-        validatePassword(this.passwordRulesArr),
-        Validators.minLength(this.requiredPasswordLength),
-        Validators.maxLength(128),
-      ];
+      const passwordValidators = getPasswordValidators(this.injector);
 
       this.form.addControl('password', new FormControl('', [...passwordValidators]));
 
@@ -167,8 +137,8 @@ export class UsersComponent implements OnInit {
   }
 
   add() {
-    this.selected = {} as Identity.UserItem;
-    this.selectedUserRoles = [] as Identity.RoleItem[];
+    this.selected = {} as IdentityUserDto;
+    this.selectedUserRoles = [] as IdentityRoleDto[];
     this.openModal();
   }
 
@@ -215,7 +185,7 @@ export class UsersComponent implements OnInit {
       .pipe(finalize(() => (this.modalBusy = false)))
       .subscribe(() => {
         this.isModalVisible = false;
-        this.get();
+        this.list.get();
       });
   }
 
@@ -226,23 +196,19 @@ export class UsersComponent implements OnInit {
       })
       .subscribe((status: Confirmation.Status) => {
         if (status === Confirmation.Status.confirm) {
-          this.store.dispatch(new DeleteUser(id)).subscribe(() => this.get());
+          this.store.dispatch(new DeleteUser(id)).subscribe(() => this.list.get());
         }
       });
   }
 
-  onPageChange(page: number) {
-    this.pageQuery.skipCount = (page - 1) * this.pageQuery.maxResultCount;
-
-    this.get();
+  sort(data) {
+    const { prop, dir } = data.sorts[0];
+    this.list.sortKey = prop;
+    this.list.sortOrder = dir;
   }
 
-  get() {
-    this.loading = true;
-    this.store
-      .dispatch(new GetUsers(this.pageQuery))
-      .pipe(finalize(() => (this.loading = false)))
-      .subscribe();
+  private hookToQuery() {
+    this.list.hookToQuery(query => this.store.dispatch(new GetUsers(query))).subscribe();
   }
 
   openPermissionsModal(providerKey: string) {

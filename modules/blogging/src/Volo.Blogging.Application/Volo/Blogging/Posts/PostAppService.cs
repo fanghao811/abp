@@ -149,6 +149,7 @@ namespace Volo.Blogging.Posts
             post.SetTitle(input.Title);
             post.SetUrl(input.Url);
             post.Content = input.Content;
+            post.Description = input.Description;
             post.CoverImage = input.CoverImage;
 
             post = await _postRepository.UpdateAsync(post);
@@ -171,7 +172,10 @@ namespace Volo.Blogging.Posts
                 coverImage: input.CoverImage,
                 url: input.Url
             )
-            { Content = input.Content };
+            {
+                Content = input.Content,
+                Description = input.Description
+            };
 
             await _postRepository.InsertAsync(post);
 
@@ -183,9 +187,7 @@ namespace Volo.Blogging.Posts
 
         private async Task<string> RenameUrlIfItAlreadyExistAsync(Guid blogId, string url, Post existingPost = null)
         {
-            var postList = await _postRepository.GetListAsync();
-
-            if (postList.Where(p => p.Url == url).WhereIf(existingPost != null, p => existingPost.Id != p.Id).Any())
+            if (await _postRepository.IsPostUrlInUseAsync(blogId, url, existingPost?.Id))
             {
                 return url + "-" + Guid.NewGuid().ToString().Substring(0, 5);
             }
@@ -202,7 +204,7 @@ namespace Volo.Blogging.Posts
 
         private async Task RemoveOldTags(ICollection<string> newTags, Post post)
         {
-            foreach (var oldTag in post.Tags)
+            foreach (var oldTag in post.Tags.ToList())
             {
                 var tag = await _tagRepository.GetAsync(oldTag.TagId);
 

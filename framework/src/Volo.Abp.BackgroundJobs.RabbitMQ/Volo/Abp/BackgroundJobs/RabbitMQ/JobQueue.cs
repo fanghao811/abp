@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using Nito.AsyncEx;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using Volo.Abp.ExceptionHandling;
 using Volo.Abp.RabbitMQ;
 using Volo.Abp.Threading;
 
@@ -22,7 +23,7 @@ namespace Volo.Abp.BackgroundJobs.RabbitMQ
         protected JobQueueConfiguration QueueConfiguration { get; }
         protected IChannelAccessor ChannelAccessor { get; private set; }
         protected EventingBasicConsumer Consumer { get; private set; }
-        
+
         public ILogger<JobQueue<TArgs>> Logger { get; set; }
 
         protected AbpBackgroundJobOptions AbpBackgroundJobOptions { get; }
@@ -31,6 +32,7 @@ namespace Volo.Abp.BackgroundJobs.RabbitMQ
         protected IRabbitMqSerializer Serializer { get; }
         protected IBackgroundJobExecuter JobExecuter { get; }
         protected IServiceScopeFactory ServiceScopeFactory { get; }
+        protected IExceptionNotifier ExceptionNotifier { get; }
 
         protected SemaphoreSlim SyncObj = new SemaphoreSlim(1, 1);
         protected bool IsDiposed { get; private set; }
@@ -41,13 +43,15 @@ namespace Volo.Abp.BackgroundJobs.RabbitMQ
             IChannelPool channelPool,
             IRabbitMqSerializer serializer,
             IBackgroundJobExecuter jobExecuter,
-            IServiceScopeFactory serviceScopeFactory)
+            IServiceScopeFactory serviceScopeFactory,
+            IExceptionNotifier exceptionNotifier)
         {
             AbpBackgroundJobOptions = backgroundJobOptions.Value;
             AbpRabbitMqBackgroundJobOptions = rabbitMqAbpBackgroundJobOptions.Value;
             Serializer = serializer;
             JobExecuter = jobExecuter;
             ServiceScopeFactory = serviceScopeFactory;
+            ExceptionNotifier = exceptionNotifier;
             ChannelPool = channelPool;
 
             JobConfiguration = AbpBackgroundJobOptions.GetJob(typeof(TArgs));
@@ -72,7 +76,7 @@ namespace Volo.Abp.BackgroundJobs.RabbitMQ
         {
             CheckDisposed();
 
-            using (await SyncObj.LockAsync())
+            using (await SyncObj.LockAsync().ConfigureAwait(false))
             {
                 await EnsureInitializedAsync();
 
@@ -91,7 +95,7 @@ namespace Volo.Abp.BackgroundJobs.RabbitMQ
                 return;
             }
 
-            using (await SyncObj.LockAsync())
+            using (await SyncObj.LockAsync().ConfigureAwait(false))
             {
                 await EnsureInitializedAsync();
             }
@@ -147,7 +151,7 @@ namespace Volo.Abp.BackgroundJobs.RabbitMQ
         }
 
         protected virtual Task PublishAsync(
-            TArgs args, 
+            TArgs args,
             BackgroundJobPriority priority = BackgroundJobPriority.Normal,
             TimeSpan? delay = null)
         {
@@ -177,7 +181,7 @@ namespace Volo.Abp.BackgroundJobs.RabbitMQ
                 var context = new JobExecutionContext(
                     scope.ServiceProvider,
                     JobConfiguration.JobType,
-                    Serializer.Deserialize(ea.Body, typeof(TArgs))
+                    Serializer.Deserialize(ea.Body.ToArray(), typeof(TArgs))
                 );
 
                 try

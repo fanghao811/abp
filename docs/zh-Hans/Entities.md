@@ -26,9 +26,9 @@ public class Book : Entity<Guid>
 如果你的实体Id类型为 `Guid`,有一些好的实践可以实现:
 
 * 创建一个构造函数,获取ID作为参数传递给基类.
-  * 如果没有为GUID Id斌值,ABP框架会在保存时设置它,但是在将实体保存到数据库之前最好在实体上有一个有效的Id.
-* 如果使用带参数的构造函数创建实体,那么还要创建一个 `protected` 构造函数. 当数据库提供程序从数据库读取你的实体时(反序列化时)将使用它.
-* 不要使用 `Guid.NewGuid()` 来设置Id! 在创建实体的代码中使用[`IGuidGenerator`服务](Guid-Generation.md)传递Id参数. `IGuidGenerator`经过优化可以产生连续的GUID.这对于关系数据库中的聚集索引非常重要.
+  * 如果没有为GUID Id斌值,**ABP框架会在保存时设置它**,但是在将实体保存到数据库之前最好在实体上有一个有效的Id.
+* 如果使用带参数的构造函数创建实体,那么还要创建一个 `private` 或 `protected`  构造函数. 当数据库提供程序从数据库读取你的实体时(反序列化时)将使用它.
+* 不要使用 `Guid.NewGuid()` 来设置Id! 在创建实体的代码中**使用[`IGuidGenerator`服务](Guid-Generation.md)**传递Id参数. `IGuidGenerator`经过优化可以产生连续的GUID.这对于关系数据库中的聚集索引非常重要.
 
 示例实体:
 
@@ -72,7 +72,7 @@ public class BookAppService : ApplicationService, IBookAppService
 
 * `BookAppService` 注入图书实体的默认[仓库](Repositories.md),使用`InsertAsync`方法插入 `Book` 到数据库中.
 * `GuidGenerator`类型是 `IGuidGenerator`,它是在`ApplicationService`基类中定义的属性. ABP将这样常用属性预注入,所以不需要手动[注入](Dependency-Injection.md).
-* 如果您想遵循DDD最佳实践，请参阅下面的*聚合示例*部分.
+* 如果你想遵循DDD最佳实践,请参阅下面的*聚合示例*部分.
 
 ### 具有复合键的实体
 
@@ -226,9 +226,15 @@ ABP框架不强制你应用任何DDD规则或模式.但是,当你准备应用的
 
 虽然这种聚合根并不常见(也不建议使用),但实际上可以按照与上面提到的跟实体相同的方式定义复合键.在这种情况下,要使用非泛型的`AggregateRoot`基类.
 
+### BasicAggregateRoot类
+
+`AggregateRoot` 类实现了 `IHasExtraProperties` 和 `IHasConcurrencyStamp` 接口,这为派生类带来了两个属性. `IHasExtraProperties` 使实体可扩展(请参见下面的 *额外的属性*部分) 和 `IHasConcurrencyStamp` 添加了由ABP框架管理的 `ConcurrencyStamp` 属性实现[乐观并发](https://docs.microsoft.com/zh-cn/ef/core/saving/concurrency). 在大多数情况下,这些是聚合根需要的功能.
+
+但是,如果你不需要这些功能,你的聚合根可以继承 `BasicAggregateRoot<TKey>`(或`BasicAggregateRoot`).
+
 ## 基类和接口的审计属性
 
-有一些属性,像`CreationTime`，`CreatorId`，`LastModificationTime`...在所有应用中都很常见. ABP框架提供了一些接口和基类来**标准化**这些属性,并**自动设置它们的值**.
+有一些属性,像`CreationTime`,`CreatorId`,`LastModificationTime`...在所有应用中都很常见. ABP框架提供了一些接口和基类来**标准化**这些属性,并**自动设置它们的值**.
 
 ### 审计接口
 
@@ -285,7 +291,7 @@ ABP框架不强制你应用任何DDD规则或模式.但是,当你准备应用的
 
 所有这些基类都有非泛型版本,可以使用 `AuditedEntity` 和 `FullAuditedAggregateRoot` 来支持复合主键;
 
-所有这些基类也有 `... WithUser`，像 `FullAuditedAggregateRootWithUser<TUser>` 和 `FullAuditedAggregateRootWithUser<TKey, TUser>`. 这样就可以将导航属性添加到你的用户实体. 但在聚合根之间添加导航属性不是一个好做法,所以这种用法是不建议的(除非你使用EF Core之类的ORM可以很好地支持这种情况,并且你真的需要它. 请记住这种方法不适用于NoSQL数据库(如MongoDB),你必须真正实现聚合模式）.
+所有这些基类也有 `... WithUser`,像 `FullAuditedAggregateRootWithUser<TUser>` 和 `FullAuditedAggregateRootWithUser<TKey, TUser>`. 这样就可以将导航属性添加到你的用户实体. 但在聚合根之间添加导航属性不是一个好做法,所以这种用法是不建议的(除非你使用EF Core之类的ORM可以很好地支持这种情况,并且你真的需要它. 请记住这种方法不适用于NoSQL数据库(如MongoDB),你必须真正实现聚合模式）.
 
 ## 额外的属性
 
@@ -365,18 +371,21 @@ public static class IdentityUserExtensions
 
 存储字典的方式取决于你使用的数据库提供程序.
 
-* 对于 [Entity Framework Core](Entity-Framework-Core.md), 它以 `JSON` 字符串形式存储在 `ExtraProperties` 字段中. 序列化到 `JSON` 和反序列化到 `JSON` 由ABP使用EF Core的[值转换](https://docs.microsoft.com/zh-cn/ef/core/modeling/value-conversions)系统自动完成.
+* 对于 [Entity Framework Core](Entity-Framework-Core.md),这是两种类型的配置;
+    * 默认它以 `JSON` 字符串形式存储在 `ExtraProperties` 字段中. 序列化到 `JSON` 和反序列化到 `JSON` 由ABP使用EF Core的[值转换](https://docs.microsoft.com/zh-cn/ef/core/modeling/value-conversions)系统自动完成.
+    * 如果需要,你可以使用 `ObjectExtensionManager` 为所需的额外属性定义一个单独的数据库字段. 那些使用 `ObjectExtensionManager` 配置的属性继续使用单个 `JSON` 字段. 当你使用预构建的[应用模块](Modules/Index.md)并且想要[扩展模块的实体](Customizing-Application-Modules-Extending-Entities.md). 参阅[EF Core迁移文档](Entity-Framework-Core.md)了解如何使用 `ObjectExtensionManager`.
 * 对于 [MongoDB](MongoDB.md), 它以 **常规字段** 存储, 因为 MongoDB 天生支持这种 [额外](https://mongodb.github.io/mongo-csharp-driver/1.11/serialization/#supporting-extra-elements) 系统.
 
 ### 讨论额外的属性
 
-如果你使用**可重复使用的模块**,其中定义了一个实体,你想使用简单的方式get/set此实体相关的一些数据,那么额外的属性系统是非常有用的. 通常 **不需要** 为自己的实体使用这个系统,是因为它有以下缺点:
+如果你使用**可重复使用的模块**,其中定义了一个实体,你想使用简单的方式get/set此实体相关的一些数据,那么额外的属性系统是非常有用的. 
+你通常 **不需要** 为自己的实体使用这个系统,是因为它有以下缺点:
 
-* 它不是**完全类型安全的**.
+* 它不是**完全类型安全的**,因为它使用字符串用作属性名称.
 * 这些属性**不容易[自动映射](Object-To-Object-Mapping.md)到其他对象**.
 * 它**不会**为EF Core在数据库表中**创建字段**,因此在数据库中针对这个字段创建索引或搜索/排序并不容易.
 
-###　额外属性背后的实体
+### 额外属性背后的实体
 
 `IHasExtraProperties` 不限于与实体一起使用. 你可以为任何类型的类实现这个接口,使用 `GetProperty`,`SetProperty` 和其他相关方法.
 

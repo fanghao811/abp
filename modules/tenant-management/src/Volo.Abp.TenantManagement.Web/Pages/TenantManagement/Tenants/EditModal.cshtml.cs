@@ -2,7 +2,8 @@ using System;
 using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using Volo.Abp.AspNetCore.Mvc.UI.RazorPages;
+using Volo.Abp.ObjectExtending;
+using Volo.Abp.Validation;
 
 namespace Volo.Abp.TenantManagement.Web.Pages.TenantManagement.Tenants
 {
@@ -18,11 +19,13 @@ namespace Volo.Abp.TenantManagement.Web.Pages.TenantManagement.Tenants
             TenantAppService = tenantAppService;
         }
 
-        public virtual async Task OnGetAsync(Guid id)
+        public virtual async Task<IActionResult> OnGetAsync(Guid id)
         {
             Tenant = ObjectMapper.Map<TenantDto, TenantInfoModel>(
                 await TenantAppService.GetAsync(id)
             );
+
+            return Page();
         }
 
         public virtual async Task<IActionResult> OnPostAsync()
@@ -35,13 +38,13 @@ namespace Volo.Abp.TenantManagement.Web.Pages.TenantManagement.Tenants
             return NoContent();
         }
 
-        public class TenantInfoModel
+        public class TenantInfoModel : ExtensibleObject
         {
             [HiddenInput]
             public Guid Id { get; set; }
 
             [Required]
-            [StringLength(TenantConsts.MaxNameLength)]
+            [DynamicStringLength(typeof(TenantConsts), nameof(TenantConsts.MaxNameLength))]
             [Display(Name = "DisplayName:TenantName")]
             public string Name { get; set; }
         }

@@ -1,45 +1,53 @@
 ﻿using System;
+using System.Text;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Volo.Abp.AspNetCore.ExceptionHandling;
 using Volo.Abp.DependencyInjection;
+using Volo.Abp.ExceptionHandling;
 using Volo.Abp.Http;
 using Volo.Abp.Json;
 
 namespace Volo.Abp.AspNetCore.Mvc.ExceptionHandling
 {
-    public class AbpExceptionFilter : IExceptionFilter, ITransientDependency
+    public class AbpExceptionFilter : IAsyncExceptionFilter, ITransientDependency
     {
         public ILogger<AbpExceptionFilter> Logger { get; set; }
 
         private readonly IExceptionToErrorInfoConverter _errorInfoConverter;
         private readonly IHttpExceptionStatusCodeFinder _statusCodeFinder;
         private readonly IJsonSerializer _jsonSerializer;
+        private readonly AbpExceptionHandlingOptions _exceptionHandlingOptions;
 
         public AbpExceptionFilter(
             IExceptionToErrorInfoConverter errorInfoConverter,
-            IHttpExceptionStatusCodeFinder statusCodeFinder, 
-            IJsonSerializer jsonSerializer)
+            IHttpExceptionStatusCodeFinder statusCodeFinder,
+            IJsonSerializer jsonSerializer,
+            IOptions<AbpExceptionHandlingOptions> exceptionHandlingOptions)
         {
             _errorInfoConverter = errorInfoConverter;
             _statusCodeFinder = statusCodeFinder;
             _jsonSerializer = jsonSerializer;
+            _exceptionHandlingOptions = exceptionHandlingOptions.Value;
 
             Logger = NullLogger<AbpExceptionFilter>.Instance;
         }
 
-        public virtual void OnException(ExceptionContext context)
+        public async Task OnExceptionAsync(ExceptionContext context)
         {
             if (!ShouldHandleException(context))
             {
                 return;
             }
 
-            HandleAndWrapException(context);
+            await HandleAndWrapException(context);
         }
 
         protected virtual bool ShouldHandleException(ExceptionContext context)
@@ -51,7 +59,7 @@ namespace Volo.Abp.AspNetCore.Mvc.ExceptionHandling
             {
                 return true;
             }
-            
+
             if (context.HttpContext.Request.CanAccept(MimeTypes.Application.Json))
             {
                 return true;
@@ -65,22 +73,32 @@ namespace Volo.Abp.AspNetCore.Mvc.ExceptionHandling
             return false;
         }
 
-        protected virtual void HandleAndWrapException(ExceptionContext context)
+        protected virtual async Task HandleAndWrapException(ExceptionContext context)
         {
             //TODO: Trigger an AbpExceptionHandled event or something like that.
 
             context.HttpContext.Response.Headers.Add(AbpHttpConsts.AbpErrorFormat, "true");
             context.HttpContext.Response.StatusCode = (int)_statusCodeFinder.GetStatusCode(context.HttpContext, context.Exception);
 
-            var remoteServiceErrorInfo = _errorInfoConverter.Convert(context.Exception);
+            var remoteServiceErrorInfo = _errorInfoConverter.Convert(context.Exception, _exceptionHandlingOptions.SendExceptionsDetailsToClients);
 
             context.Result = new ObjectResult(new RemoteServiceErrorResponse(remoteServiceErrorInfo));
 
             var logLevel = context.Exception.GetLogLevel();
 
-            Logger.LogWithLevel(logLevel, $"---------- {nameof(RemoteServiceErrorInfo)} ----------");
-            Logger.LogWithLevel(logLevel, _jsonSerializer.Serialize(remoteServiceErrorInfo, indented: true));
+            var remoteServiceErrorInfoBuilder = new StringBuilder();
+            remoteServiceErrorInfoBuilder.AppendLine($"---------- {nameof(RemoteServiceErrorInfo)} ----------");
+            remoteServiceErrorInfoBuilder.AppendLine( _jsonSerializer.Serialize(remoteServiceErrorInfo, indented: true));
+            Logger.LogWithLevel(logLevel, remoteServiceErrorInfoBuilder.ToString());
+
             Logger.LogException(context.Exception, logLevel);
+
+            await context.HttpContext
+                .RequestServices
+                .GetRequiredService<IExceptionNotifier>()
+                .NotifyAsync(
+                    new ExceptionNotificationContext(context.Exception)
+                );
 
             context.Exception = null; //Handled!
         }

@@ -7,6 +7,7 @@ using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
 using Volo.Abp.Caching;
 using Volo.Abp.Guids;
+using Volo.Docs.Caching;
 using Volo.Docs.Documents;
 
 namespace Volo.Docs.Projects
@@ -51,7 +52,7 @@ namespace Volo.Docs.Projects
             var project = await _projectRepository.GetByShortNameAsync(shortName);
 
             var versions = await _versionCache.GetOrAddAsync(
-                project.ShortName,
+                CacheKeyGenerator.GenerateProjectVersionsCacheKey(project),
                 () => GetVersionsAsync(project),
                 () => new DistributedCacheEntryOptions
                 {
@@ -85,11 +86,6 @@ namespace Volo.Docs.Projects
                 }
             }
 
-            if (versions.Any() && !string.IsNullOrEmpty(project.LatestVersionBranchName))
-            {
-                versions.First().Name = project.LatestVersionBranchName;
-            }
-
             return versions;
         }
 
@@ -110,19 +106,39 @@ namespace Volo.Docs.Projects
             var project = await _projectRepository.GetByShortNameAsync(shortName);
             var store = _documentSource.Create(project.DocumentStoreType);
 
+            version = GetProjectVersionPrefixIfExist(project) + version;
+
             async Task<LanguageConfig> GetLanguagesAsync()
             {
                 return await store.GetLanguageListAsync(project, version);
             }
 
             return await LanguageCache.GetOrAddAsync(
-                project.ShortName,
+                CacheKeyGenerator.GenerateProjectLanguageCacheKey(project),
                 GetLanguagesAsync,
                 () => new DistributedCacheEntryOptions
                 {
                     AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(24)
                 }
             );
+        }
+
+        private string GetProjectVersionPrefixIfExist(Project project)
+        {
+            if (GetGithubVersionProviderSource(project) != GithubVersionProviderSource.Branches)
+            {
+                return string.Empty;
+            }
+
+            return project.ExtraProperties["VersionBranchPrefix"].ToString();
+
+        }
+
+        private GithubVersionProviderSource GetGithubVersionProviderSource(Project project)
+        {
+            return project.ExtraProperties.ContainsKey("GithubVersionProviderSource")
+                ? (GithubVersionProviderSource) (long) project.ExtraProperties["GithubVersionProviderSource"]
+                : GithubVersionProviderSource.Releases;
         }
     }
 }

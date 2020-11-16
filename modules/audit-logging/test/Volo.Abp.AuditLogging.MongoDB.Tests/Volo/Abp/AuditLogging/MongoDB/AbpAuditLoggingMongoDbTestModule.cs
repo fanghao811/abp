@@ -1,8 +1,7 @@
 ﻿using System;
-using Microsoft.Extensions.DependencyInjection;
-using Mongo2Go;
 using Volo.Abp.Data;
 using Volo.Abp.Modularity;
+using Volo.Abp.Uow;
 
 namespace Volo.Abp.AuditLogging.MongoDB
 {
@@ -12,13 +11,12 @@ namespace Volo.Abp.AuditLogging.MongoDB
     )]
     public class AbpAuditLoggingMongoDbTestModule : AbpModule
     {
-        private static readonly MongoDbRunner MongoDbRunner = MongoDbRunner.Start();
-
         public override void ConfigureServices(ServiceConfigurationContext context)
         {
-            var connectionString = MongoDbRunner.ConnectionString.EnsureEndsWith('/') +
-                                   "Db_" +
-                                    Guid.NewGuid().ToString("N");
+            var stringArray = MongoDbFixture.ConnectionString.Split('?');
+            var connectionString = stringArray[0].EnsureEndsWith('/')  +
+                                       "Db_" +
+                                   Guid.NewGuid().ToString("N") + "/?" + stringArray[1];
 
             Configure<AbpDbConnectionOptions>(options =>
             {

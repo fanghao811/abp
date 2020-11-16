@@ -3,12 +3,13 @@ using System.Collections.Generic;
 using System.IO;
 using System.Security;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
+using Volo.Abp;
 using Volo.Abp.Domain.Services;
 using Volo.Abp.IO;
 using Volo.Docs.Documents;
 using Volo.Docs.FileSystem.Projects;
 using Volo.Docs.Projects;
+using Volo.Extensions;
 
 namespace Volo.Docs.FileSystem.Documents
 {
@@ -22,7 +23,7 @@ namespace Volo.Docs.FileSystem.Documents
             var path = Path.Combine(projectFolder, languageCode, documentName);
 
             CheckDirectorySecurity(projectFolder, path);
-            
+
             var content = await FileHelper.ReadAllTextAsync(path);
             var localDirectory = "";
 
@@ -55,10 +56,15 @@ namespace Volo.Docs.FileSystem.Documents
 
         public async Task<LanguageConfig> GetLanguageListAsync(Project project, string version)
         {
-            var path = Path.Combine(project.GetFileSystemPath(), "docs-langs.json");
-            var configAsJson = await FileHelper.ReadAllTextAsync(path);
+            var path = Path.Combine(project.GetFileSystemPath(), DocsDomainConsts.LanguageConfigFileName);
+            var configJsonContent = await FileHelper.ReadAllTextAsync(path);
 
-            return JsonConvert.DeserializeObject<LanguageConfig>(configAsJson);
+            if (!DocsJsonSerializerHelper.TryDeserialize<LanguageConfig>(configJsonContent, out var languageConfig))
+            {
+                throw new UserFriendlyException($"Cannot validate language config file '{DocsDomainConsts.LanguageConfigFileName}' for the project {project.Name}.");
+            }
+
+            return languageConfig;
         }
 
         public async Task<DocumentResource> GetResource(Project project, string resourceName, string languageCode, string version)
@@ -79,6 +85,11 @@ namespace Volo.Docs.FileSystem.Documents
             if (!DirectoryHelper.IsSubDirectoryOf(projectFolder, path))
             {
                 throw new SecurityException("Can not get a resource file out of the project folder!");
+            }
+
+            if (!File.Exists(path))
+            {
+                throw new DocumentNotFoundException(path);
             }
         }
     }

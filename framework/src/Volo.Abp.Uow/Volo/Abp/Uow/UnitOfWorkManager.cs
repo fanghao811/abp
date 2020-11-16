@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Volo.Abp.DependencyInjection;
 
 namespace Volo.Abp.Uow
@@ -8,12 +7,12 @@ namespace Volo.Abp.Uow
     {
         public IUnitOfWork Current => GetCurrentUnitOfWork();
 
-        private readonly IHybridServiceScopeFactory _serviceScopeFactory;
+        private readonly IServiceScopeFactory _serviceScopeFactory;
         private readonly IAmbientUnitOfWork _ambientUnitOfWork;
 
         public UnitOfWorkManager(
-            IAmbientUnitOfWork ambientUnitOfWork, 
-            IHybridServiceScopeFactory serviceScopeFactory)
+            IAmbientUnitOfWork ambientUnitOfWork,
+            IServiceScopeFactory serviceScopeFactory)
         {
             _ambientUnitOfWork = ambientUnitOfWork;
             _serviceScopeFactory = serviceScopeFactory;
@@ -39,7 +38,7 @@ namespace Volo.Abp.Uow
         {
             Check.NotNull(reservationName, nameof(reservationName));
 
-            if (!requiresNew && 
+            if (!requiresNew &&
                 _ambientUnitOfWork.UnitOfWork != null &&
                 _ambientUnitOfWork.UnitOfWork.IsReservedFor(reservationName))
             {

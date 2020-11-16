@@ -5,7 +5,7 @@ using Volo.Abp.MultiTenancy;
 
 namespace Volo.Abp.Identity
 {
-    public class IdentityUserDto : FullAuditedEntityDto<Guid>, IMultiTenant, IHasConcurrencyStamp
+    public class IdentityUserDto : ExtensibleFullAuditedEntityDto<Guid>, IMultiTenant, IHasConcurrencyStamp
     {
         public Guid? TenantId { get; set; }
 
@@ -22,8 +22,6 @@ namespace Volo.Abp.Identity
         public string PhoneNumber { get; set; }
 
         public bool PhoneNumberConfirmed { get; set; }
-
-        public bool TwoFactorEnabled { get; set; }
 
         public bool LockoutEnabled { get; set; }
 

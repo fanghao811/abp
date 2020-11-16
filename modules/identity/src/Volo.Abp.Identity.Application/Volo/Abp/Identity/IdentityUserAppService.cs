@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Volo.Abp.Application.Dtos;
+using Volo.Abp.ObjectExtending;
 
 namespace Volo.Abp.Identity
 {
@@ -11,13 +12,16 @@ namespace Volo.Abp.Identity
     {
         protected IdentityUserManager UserManager { get; }
         protected IIdentityUserRepository UserRepository { get; }
+        public IIdentityRoleRepository RoleRepository { get; }
 
         public IdentityUserAppService(
             IdentityUserManager userManager,
-            IIdentityUserRepository userRepository)
+            IIdentityUserRepository userRepository,
+            IIdentityRoleRepository roleRepository)
         {
             UserManager = userManager;
             UserRepository = userRepository;
+            RoleRepository = roleRepository;
         }
 
         //TODO: [Authorize(IdentityPermissions.Users.Default)] should go the IdentityUserAppService class.
@@ -44,16 +48,34 @@ namespace Volo.Abp.Identity
         [Authorize(IdentityPermissions.Users.Default)]
         public virtual async Task<ListResultDto<IdentityRoleDto>> GetRolesAsync(Guid id)
         {
+            //TODO: Should also include roles of the related OUs.
+
             var roles = await UserRepository.GetRolesAsync(id);
+
             return new ListResultDto<IdentityRoleDto>(
                 ObjectMapper.Map<List<IdentityRole>, List<IdentityRoleDto>>(roles)
             );
         }
 
+        [Authorize(IdentityPermissions.Users.Default)]
+        public virtual async Task<ListResultDto<IdentityRoleDto>> GetAssignableRolesAsync()
+        {
+            var list = await RoleRepository.GetListAsync();
+            return new ListResultDto<IdentityRoleDto>(
+                ObjectMapper.Map<List<IdentityRole>, List<IdentityRoleDto>>(list));
+        }
+
         [Authorize(IdentityPermissions.Users.Create)]
         public virtual async Task<IdentityUserDto> CreateAsync(IdentityUserCreateDto input)
         {
-            var user = new IdentityUser(GuidGenerator.Create(), input.UserName, input.Email, CurrentTenant.Id);
+            var user = new IdentityUser(
+                GuidGenerator.Create(),
+                input.UserName,
+                input.Email,
+                CurrentTenant.Id
+            );
+
+            input.MapExtraPropertiesTo(user);
 
             (await UserManager.CreateAsync(user, input.Password)).CheckErrors();
             await UpdateUserByInput(user, input);
@@ -70,7 +92,10 @@ namespace Volo.Abp.Identity
             user.ConcurrencyStamp = input.ConcurrencyStamp;
 
             (await UserManager.SetUserNameAsync(user, input.UserName)).CheckErrors();
+
             await UpdateUserByInput(user, input);
+            input.MapExtraPropertiesTo(user);
+
             (await UserManager.UpdateAsync(user)).CheckErrors();
 
             if (!input.Password.IsNullOrEmpty())
@@ -110,10 +135,10 @@ namespace Volo.Abp.Identity
         }
 
         [Authorize(IdentityPermissions.Users.Default)]
-        public virtual async Task<IdentityUserDto> FindByUsernameAsync(string username)
+        public virtual async Task<IdentityUserDto> FindByUsernameAsync(string userName)
         {
             return ObjectMapper.Map<IdentityUser, IdentityUserDto>(
-                await UserManager.FindByNameAsync(username)
+                await UserManager.FindByNameAsync(userName)
             );
         }
 
@@ -137,7 +162,6 @@ namespace Volo.Abp.Identity
                 (await UserManager.SetPhoneNumberAsync(user, input.PhoneNumber)).CheckErrors();
             }
 
-            (await UserManager.SetTwoFactorEnabledAsync(user, input.TwoFactorEnabled)).CheckErrors();
             (await UserManager.SetLockoutEnabledAsync(user, input.LockoutEnabled)).CheckErrors();
 
             user.Name = input.Name;
